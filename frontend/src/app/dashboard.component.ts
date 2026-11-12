@@ -11,7 +11,7 @@ import { EstrelasComponent } from './estrelas.component';
   standalone: true,
   imports: [RouterLink, EstrelasComponent, DatePipe],
   template: `
-  <h1>{{ ehDronista ? 'Bem-vindo, dronista! 🚁' : 'Bem-vindo! 🎯' }}</h1>
+  <h1><span class="drone-icone"></span> {{ ehDronista ? 'Bem-vindo, dronista!' : 'Bem-vindo! 🎯' }}</h1>
   <p class="muted">{{ ehDronista
       ? 'Veja as oportunidades abertas e acompanhe suas propostas enviadas.'
       : 'Publique sua necessidade de voo e escolha a melhor proposta recebida.' }}</p>

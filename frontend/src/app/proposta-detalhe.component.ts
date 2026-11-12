@@ -55,7 +55,7 @@ import { DialogService } from './dialog.service';
         @for (c of contas; track c.id) {
           <div class="cartao-item">
             <div class="linha-topo">
-              <h3 class="card-titulo">🚁 {{ c.nomeDronista }}
+              <h3 class="card-titulo"><span class="drone-icone"></span> {{ c.nomeDronista }}
                 @if (c.notaDronista != null) { <app-estrelas [nota]="c.notaDronista"></app-estrelas> }
               </h3>
               <span class="badge badge-enviada">{{ rotuloStatusConta(c.status) }}</span>
@@ -80,7 +80,7 @@ import { DialogService } from './dialog.service';
         <h2>🎬 Entrega{{ p.status === 'CONCLUIDA' ? ' aprovada — pagamento liberado 💸' : ' do vídeo' }}</h2>
         <div class="cartao-item">
           <ul class="meta-lista" style="margin-top:0">
-            <li>🚁 {{ entrega.nomeDronista }}</li>
+            <li><span class="drone-icone"></span> {{ entrega.nomeDronista }}</li>
             <li>🔗 <a [href]="entrega.urlVideo" target="_blank" rel="noopener" class="link-video">{{ entrega.urlVideo }}</a></li>
             @if (entrega.observacao) { <li>💬 {{ entrega.observacao }}</li> }
           </ul>

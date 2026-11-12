@@ -31,7 +31,7 @@ import { salvarSessao } from './papel';
           <p>Quero publicar um trabalho e receber propostas de dronistas.</p>
         </button>
         <button type="button" class="opcao-papel" [class.selecionado]="papel === 'DRONISTA'" (click)="papel = 'DRONISTA'">
-          <span class="icone">🚁</span>
+          <span class="icone"><span class="drone-icone"></span></span>
           <span class="titulo">Sou dronista</span>
           <p>Tenho drone e quero encontrar trabalhos para voar.</p>
         </button>
@@ -62,7 +62,7 @@ import { salvarSessao } from './papel';
 
             @if (papel === 'DRONISTA') {
               <details class="secao" open>
-                <summary>🚁 Dados do profissional</summary>
+                <summary><span class="drone-icone"></span> Dados do profissional</summary>
                 <label>CPF ou CNPJ
                   <input [(ngModel)]="cnpjCpf" name="cnpjCpf" required placeholder="000.000.000-00" maxlength="18" mascaraDoc>
                 </label>
@@ -98,6 +98,10 @@ import { salvarSessao } from './papel';
                 <small class="hint">Usamos sua base para ordenar oportunidades por proximidade.</small>
               </details>
             } @else {
+              <label>CPF ou CNPJ
+                <input [(ngModel)]="cnpjCpf" name="cnpjCpf" placeholder="000.000.000-00" maxlength="18" mascaraDoc>
+                <small class="hint">Opcional — validamos o dígito verificador ao salvar.</small>
+              </label>
               <label>Empresa (opcional)
                 <input [(ngModel)]="empresa" name="empresa" placeholder="Nome da sua empresa">
               </label>

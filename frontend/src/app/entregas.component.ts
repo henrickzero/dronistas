@@ -33,7 +33,7 @@ import { DialogService } from './dialog.service';
         <span class="badge" [class]="'badge-' + e.status.toLowerCase()">{{ rotuloStatus(e.status) }}</span>
       </div>
       <ul class="meta-lista">
-        <li>🚁 {{ e.nomeDronista }} · 💰 R$ {{ e.valorProposto }}</li>
+        <li><span class="drone-icone"></span> {{ e.nomeDronista }} · 💰 R$ {{ e.valorProposto }}</li>
         <li>🔗 <a [href]="e.urlVideo" target="_blank" rel="noopener" class="link-video">{{ e.urlVideo }}</a></li>
         @if (e.observacao) { <li>💬 {{ e.observacao }}</li> }
         @if (e.status === 'APROVADA') {

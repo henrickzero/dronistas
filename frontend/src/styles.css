@@ -28,6 +28,17 @@
 
 * { box-sizing: border-box; }
 
+/* ---------- Ícone de drone (quadricóptero) ---------- */
+.drone-icone {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg stroke='%230f766e' stroke-width='5'%3E%3Cline x1='14' y1='14' x2='26' y2='26'/%3E%3Cline x1='50' y1='14' x2='38' y2='26'/%3E%3Cline x1='14' y1='50' x2='26' y2='38'/%3E%3Cline x1='50' y1='50' x2='38' y2='38'/%3E%3C/g%3E%3Cg fill='%230d9488'%3E%3Ccircle cx='10' cy='10' r='8'/%3E%3Ccircle cx='54' cy='10' r='8'/%3E%3Ccircle cx='10' cy='54' r='8'/%3E%3Ccircle cx='54' cy='54' r='8'/%3E%3C/g%3E%3Cg fill='%230f766e'%3E%3Crect x='7' y='7' width='12' height='6' rx='3'/%3E%3Crect x='45' y='7' width='12' height='6' rx='3'/%3E%3Crect x='7' y='51' width='12' height='6' rx='3'/%3E%3Crect x='45' y='51' width='12' height='6' rx='3'/%3E%3C/g%3E%3Crect x='24' y='24' width='16' height='16' rx='4' fill='%230d9488'/%3E%3Crect x='28' y='37' width='8' height='7' rx='2' fill='%230f766e'/%3E%3C/svg%3E");
+}
+
 html, body {
   margin: 0;
   padding: 0;

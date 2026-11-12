@@ -93,12 +93,16 @@ public class AuthService {
             p.setTrabalhosConcluidos(0);
             dronistas.inserir(p);
         } else {
+            String doc = DocumentoValidator.normalizar(r.cnpjCpf());
+            if (!doc.isEmpty() && !documentos.isValido(doc))
+                throw new RegraNegocioException("DOCUMENTO_INVALIDO", "CPF/CNPJ inválido");
             PerfilSolicitante p = new PerfilSolicitante();
             p.setId(UUID.randomUUID());
             p.setUsuarioId(u.getId());
             p.setNome(u.getNome());
             p.setTelefone(r.telefone());
             p.setEmpresa(r.empresa());
+            p.setCnpjCpf(doc.isEmpty() ? null : doc);
             p.setNotaMedia(null);
             p.setContratacoes(0);
             solicitantes.inserir(p);

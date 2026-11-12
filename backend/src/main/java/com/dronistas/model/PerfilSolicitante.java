@@ -9,6 +9,7 @@ public class PerfilSolicitante {
     private String nome;
     private String telefone;
     private String empresa;
+    private String cnpjCpf;       // CPF ou CNPJ (alfanumérico), opcional
     private Double notaMedia;     // média das notas 1-5 dadas pelos dronistas
     private int contratacoes;     // entregas aprovadas
     private boolean ativo;
@@ -24,6 +25,8 @@ public class PerfilSolicitante {
     public void setTelefone(String telefone) { this.telefone = telefone; }
     public String getEmpresa() { return empresa; }
     public void setEmpresa(String empresa) { this.empresa = empresa; }
+    public String getCnpjCpf() { return cnpjCpf; }
+    public void setCnpjCpf(String cnpjCpf) { this.cnpjCpf = cnpjCpf; }
     public Double getNotaMedia() { return notaMedia; }
     public void setNotaMedia(Double notaMedia) { this.notaMedia = notaMedia; }
     public int getContratacoes() { return contratacoes; }

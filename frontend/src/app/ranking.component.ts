@@ -12,7 +12,7 @@ import { EstrelasComponent } from './estrelas.component';
   <p class="muted">Os melhor avaliados de cada lado do marketplace.</p>
 
   <div class="seletor">
-    <button class="chip" [class.ativo]="aba === 'dronistas'" (click)="aba = 'dronistas'">🚁 Dronistas</button>
+    <button class="chip" [class.ativo]="aba === 'dronistas'" (click)="aba = 'dronistas'"><span class="drone-icone"></span> Dronistas</button>
     <button class="chip" [class.ativo]="aba === 'solicitantes'" (click)="aba = 'solicitantes'">🎯 Solicitantes</button>
   </div>
 

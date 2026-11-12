@@ -15,14 +15,15 @@ public interface PerfilSolicitanteMapper {
     PerfilSolicitante buscarPorId(@Param("id") UUID id);
 
     @Insert("""
-        INSERT INTO perfil_solicitante (id, usuario_id, nome, telefone, empresa, ativo, criado_em)
-        VALUES (#{id}, #{usuarioId}, #{nome}, #{telefone}, #{empresa}, TRUE, now())
+        INSERT INTO perfil_solicitante (id, usuario_id, nome, telefone, empresa, cnpj_cpf, ativo, criado_em)
+        VALUES (#{id}, #{usuarioId}, #{nome}, #{telefone}, #{empresa}, #{cnpjCpf}, TRUE, now())
         """)
     int inserir(PerfilSolicitante p);
 
     @Update("""
         UPDATE perfil_solicitante
-        SET nome = #{nome}, telefone = #{telefone}, empresa = COALESCE(#{empresa}, empresa)
+        SET nome = #{nome}, telefone = #{telefone}, empresa = COALESCE(#{empresa}, empresa),
+            cnpj_cpf = COALESCE(#{cnpjCpf}, cnpj_cpf)
         WHERE id = #{id} AND ativo
         """)
     int atualizar(PerfilSolicitante p);
