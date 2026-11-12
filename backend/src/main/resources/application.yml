@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: dronistas
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dronistas}
+    username: ${DB_USER:dronistas}
+    password: ${DB_PASSWORD:dronistas}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+mybatis:
+  type-aliases-package: com.dronistas.model
+  type-handlers-package: com.dronistas.config
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:troque-esta-chave-em-producao-com-256-bits-minimo}
+    ttl-minutes: ${JWT_TTL_MINUTES:720}

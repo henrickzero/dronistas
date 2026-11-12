@@ -1,0 +1,41 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: dronistas
+      POSTGRES_USER: dronistas
+      POSTGRES_PASSWORD: dronistas
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_dronistas:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dronistas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: dronistas
+      DB_USER: dronistas
+      DB_PASSWORD: dronistas
+      JWT_SECRET: troque-em-producao-com-uma-chave-aleatoria-de-256-bits
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
+volumes:
+  pgdata_dronistas:
