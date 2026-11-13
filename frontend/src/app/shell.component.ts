@@ -4,8 +4,8 @@ import { ApiService } from './api.service';
 import { papelAtual, limparSessao } from './papel';
 
 /**
- * Shell interno autenticado. Sidebar escura no desktop; no celular vira
- * header sticky com os links em uma linha (mobile-first).
+ * Shell interno autenticado. Sidebar estilo YouTube no desktop; no celular vira
+ * header sticky com botão hambúrguer expansível (mobile-first).
  */
 @Component({
   selector: 'app-shell',
@@ -23,19 +23,21 @@ import { papelAtual, limparSessao } from './papel';
       </div>
       <nav (click)="fecharAoNavegar()">
         <span class="rotulo">Menu</span>
-        <a routerLink="/app" routerLinkActive="ativo" [routerLinkActiveOptions]="{exact: true}">🏠 Início</a>
+        <a routerLink="/app" routerLinkActive="ativo" [routerLinkActiveOptions]="{exact: true}">
+          <span class="ico">🏠</span> Início
+        </a>
 
         @if (ehDronista) {
-          <a routerLink="/app/propostas">🧭 Oportunidades</a>
-          <a routerLink="/app/contas">📄 Minhas propostas</a>
+          <a routerLink="/app/propostas"><span class="ico">🧭</span> Oportunidades</a>
+          <a routerLink="/app/contas"><span class="ico">📄</span> Minhas propostas</a>
         } @else {
-          <a routerLink="/app/propostas">📋 Minhas propostas de voo</a>
-          <a routerLink="/app/propostas/nova">➕ Publicar novo voo</a>
+          <a routerLink="/app/propostas"><span class="ico">📋</span> Minhas propostas de voo</a>
+          <a routerLink="/app/propostas/nova"><span class="ico">➕</span> Publicar novo voo</a>
         }
 
-        <a routerLink="/app/entregas">🎬 Entregas</a>
-        <a routerLink="/app/ranking">🏆 Ranking</a>
-        <a routerLink="/app/perfil">👤 Perfil</a>
+        <a routerLink="/app/entregas"><span class="ico">🎬</span> Entregas</a>
+        <a routerLink="/app/ranking"><span class="ico">🏆</span> Ranking</a>
+        <a routerLink="/app/perfil"><span class="ico">👤</span> Perfil</a>
       </nav>
       <button class="btn-logout" (click)="sair()">Sair</button>
     </aside>
@@ -47,67 +49,80 @@ import { papelAtual, limparSessao } from './papel';
     </section>
   </div>`,
   styles: [`
-    .app-shell { display: flex; min-height: 100vh; }
+    .app-shell { display: flex; min-height: 100vh; background: var(--color-bg); }
 
     .sidebar {
-      width: 250px; background: #0b1f1d; color: #e6f4f2;
-      display: flex; flex-direction: column; padding: 1rem .75rem; gap: .5rem;
+      width: 240px; color: var(--color-text);
+      background: var(--color-bg);
+      display: flex; flex-direction: column; padding: .75rem .75rem; gap: .35rem;
       flex-shrink: 0;
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
     }
-    .sidebar-brand { font-weight: 800; font-size: 1.2rem; padding: .25rem .5rem .75rem; }
-    .sidebar-brand span { color: var(--color-accent); }
+    .sidebar-brand {
+      font-weight: 800; font-size: 1.25rem; padding: .35rem .6rem .9rem;
+      color: var(--color-text); letter-spacing: -.5px;
+    }
+    .sidebar-brand span { color: var(--color-primary); }
+    .sidebar nav { display: flex; flex-direction: column; gap: .05rem; flex: 1; }
+    .sidebar .rotulo { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--color-text-muted); padding: .5rem .6rem .35rem; }
+    .sidebar nav a {
+      color: var(--color-text); text-decoration: none; padding: .6rem .75rem;
+      border-radius: 10px; font-size: .925rem;
+      display: flex; align-items: center; gap: .75rem;
+      transition: background .12s ease;
+    }
+    .sidebar nav a .ico { font-size: 1.05rem; width: 1.5rem; text-align: center; }
+    .sidebar nav a:hover { background: rgba(255, 255, 255, .08); }
+    /* Item ativo: faixa branca à esquerda + fundo sutil, sem "caixa" colorida */
+    .sidebar nav a.ativo {
+      background: rgba(255, 255, 255, .12); font-weight: 600;
+    }
     .btn-menu {
       display: none;
-      border: 1px solid #2a4a46; background: transparent; color: #e6f4f2;
-      font-size: 1.15rem; line-height: 1; padding: .4rem .6rem;
-      cursor: pointer; border-radius: var(--radius);
+      border: none; background: transparent; color: var(--color-text);
+      font-size: 1.2rem; line-height: 1; padding: .4rem .6rem;
+      cursor: pointer; border-radius: 999px;
     }
+    .btn-menu:hover { background: rgba(255, 255, 255, .08); }
     .sidebar-topo {
       display: none; align-items: center; justify-content: space-between;
-      padding: .15rem .4rem;
+      padding: .1rem .2rem; margin-bottom: .2rem;
     }
-    .sidebar nav { display: flex; flex-direction: column; gap: .2rem; flex: 1; }
-    .sidebar .rotulo { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: #6f9b96; padding: .4rem .5rem .2rem; }
-    .sidebar nav a {
-      color: #bcd9d5; text-decoration: none; padding: .6rem .6rem;
-      border-radius: var(--radius); font-size: .925rem;
-    }
-    .sidebar nav a:hover { background: #16302d; color: #fff; }
-    .sidebar nav a.ativo { background: var(--color-primary); color: #fff; font-weight: 600; }
     .btn-logout {
-      border: 1px solid #2a4a46; background: transparent; color: #bcd9d5;
-      padding: .55rem .5rem; cursor: pointer; border-radius: var(--radius); font-size: .9rem;
+      border: none; background: transparent; color: var(--color-text-muted);
+      padding: .6rem .75rem; cursor: pointer; border-radius: 10px; font-size: .925rem;
+      text-align: left;
     }
-    .btn-logout:hover { background: #16302d; color: #fff; }
+    .btn-logout:hover { background: rgba(255, 255, 255, .08); color: var(--color-text); }
 
     .area { flex: 1; min-width: 0; }
     .conteudo-pagina { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
 
-    /* Celular: header sticky com botão expansível (hambúrguer) */
+    /* Celular: header fixo preto + menu hambúrguer */
     @media (max-width: 768px) {
       .app-shell { flex-direction: column; }
       .sidebar {
         width: 100%; flex-direction: column; padding: 0;
-        position: sticky; top: 0; z-index: 40; box-shadow: var(--shadow);
+        position: sticky; top: 0; z-index: 40; height: auto; overflow: visible;
+        background: var(--color-bg);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, .08);
       }
       .sidebar-topo {
-        display: flex; padding: .55rem .7rem;
-        background: #0b1f1d;
+        display: flex; padding: .6rem .5rem;
       }
       .btn-menu { display: inline-block; }
-      .sidebar-brand { padding: 0; font-size: 1.05rem; }
+      .sidebar-brand { padding: 0 .2rem; font-size: 1.1rem; }
       .sidebar nav {
         display: none;
-        flex-direction: column; gap: .2rem;
-        padding: .5rem .6rem .6rem;
-        background: #0b1f1d;
-        border-top: 1px solid #16302d;
+        flex-direction: column; gap: .05rem;
+        padding: .4rem .5rem .6rem;
+        background: var(--color-bg);
       }
       .sidebar.aberto nav { display: flex; }
-      .sidebar .rotulo { display: block; padding: .2rem .5rem .2rem; }
-      .sidebar nav a { padding: .7rem .6rem; font-size: .95rem; white-space: normal; }
+      .sidebar .rotulo { display: block; }
+      .sidebar nav a { padding: .75rem .7rem; font-size: .95rem; }
       .btn-logout { display: none; }
-      .sidebar.aberto .btn-logout { display: block; margin: 0 .6rem .6rem; }
+      .sidebar.aberto .btn-logout { display: block; margin: 0 .5rem .5rem; }
       .conteudo-pagina { padding: 1rem .8rem 2.5rem; }
     }
   `]
