@@ -13,9 +13,15 @@ import { papelAtual, limparSessao } from './papel';
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="sidebar-brand">dron<span>istas</span></div>
-      <nav>
+    <aside class="sidebar" [class.aberto]="menuAberto">
+      <div class="sidebar-topo">
+        <div class="sidebar-brand">dron<span>istas</span></div>
+        <button class="btn-menu" type="button" (click)="menuAberto = !menuAberto"
+                [attr.aria-expanded]="menuAberto" aria-label="Abrir/fechar menu">
+          {{ menuAberto ? '✕' : '☰' }}
+        </button>
+      </div>
+      <nav (click)="fecharAoNavegar()">
         <span class="rotulo">Menu</span>
         <a routerLink="/app" routerLinkActive="ativo" [routerLinkActiveOptions]="{exact: true}">🏠 Início</a>
 
@@ -50,6 +56,16 @@ import { papelAtual, limparSessao } from './papel';
     }
     .sidebar-brand { font-weight: 800; font-size: 1.2rem; padding: .25rem .5rem .75rem; }
     .sidebar-brand span { color: var(--color-accent); }
+    .btn-menu {
+      display: none;
+      border: 1px solid #2a4a46; background: transparent; color: #e6f4f2;
+      font-size: 1.15rem; line-height: 1; padding: .4rem .6rem;
+      cursor: pointer; border-radius: var(--radius);
+    }
+    .sidebar-topo {
+      display: none; align-items: center; justify-content: space-between;
+      padding: .15rem .4rem;
+    }
     .sidebar nav { display: flex; flex-direction: column; gap: .2rem; flex: 1; }
     .sidebar .rotulo { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: #6f9b96; padding: .4rem .5rem .2rem; }
     .sidebar nav a {
@@ -67,18 +83,31 @@ import { papelAtual, limparSessao } from './papel';
     .area { flex: 1; min-width: 0; }
     .conteudo-pagina { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
 
-    /* Celular: sidebar vira header sticky */
+    /* Celular: header sticky com botão expansível (hambúrguer) */
     @media (max-width: 768px) {
       .app-shell { flex-direction: column; }
       .sidebar {
-        width: 100%; flex-direction: column; padding: .5rem .6rem;
+        width: 100%; flex-direction: column; padding: 0;
         position: sticky; top: 0; z-index: 40; box-shadow: var(--shadow);
       }
-      .sidebar-brand { padding: .15rem .4rem; font-size: 1rem; }
-      .sidebar nav { flex-direction: row; overflow-x: auto; gap: .3rem; -webkit-overflow-scrolling: touch; }
-      .sidebar .rotulo { display: none; }
-      .sidebar nav a { padding: .45rem .7rem; font-size: .82rem; white-space: nowrap; }
-      .btn-logout { padding: .4rem .7rem; font-size: .8rem; align-self: flex-end; margin-top: .3rem; }
+      .sidebar-topo {
+        display: flex; padding: .55rem .7rem;
+        background: #0b1f1d;
+      }
+      .btn-menu { display: inline-block; }
+      .sidebar-brand { padding: 0; font-size: 1.05rem; }
+      .sidebar nav {
+        display: none;
+        flex-direction: column; gap: .2rem;
+        padding: .5rem .6rem .6rem;
+        background: #0b1f1d;
+        border-top: 1px solid #16302d;
+      }
+      .sidebar.aberto nav { display: flex; }
+      .sidebar .rotulo { display: block; padding: .2rem .5rem .2rem; }
+      .sidebar nav a { padding: .7rem .6rem; font-size: .95rem; white-space: normal; }
+      .btn-logout { display: none; }
+      .sidebar.aberto .btn-logout { display: block; margin: 0 .6rem .6rem; }
       .conteudo-pagina { padding: 1rem .8rem 2.5rem; }
     }
   `]
@@ -86,8 +115,11 @@ import { papelAtual, limparSessao } from './papel';
 export class ShellComponent implements OnInit {
   ehDronista = false;
   ehSolicitante = false;
+  menuAberto = false;
 
   constructor(private api: ApiService) {}
+
+  fecharAoNavegar() { this.menuAberto = false; }
 
   ngOnInit() {
     this.ehDronista = papelAtual() === 'DRONISTA';
