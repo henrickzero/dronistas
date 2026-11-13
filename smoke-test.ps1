@@ -118,6 +118,9 @@ Check "filtro por UF+cidade (case-insensitive)" ($r.ok -and ($r.data.conteudo | 
 $r = Api GET "$base/propostas/abertas?estado=RJ" $null $tokDr1
 Check "filtro por UF sem resultados (RJ)" ($r.ok -and $r.data.totalElementos -eq 0) ($r.body)
 
+$r = Api GET "$base/propostas/abertas/cidades?estado=SP" $null $tokDr1
+Check "combo de cidades SP inclui Itu" ($r.ok -and ($r.data -contains 'Itu')) ($r.body | Out-String)
+
 $r = Api GET "$base/propostas/abertas" $null $tokDr1
 $comDist = $r.data.conteudo | Where-Object { $_.id -eq $propostaId -and $null -ne $_.distanciaKm }
 if ($comDist) {

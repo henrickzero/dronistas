@@ -28,13 +28,16 @@ import { DialogService } from './dialog.service';
     <p class="muted">Acompanhe o status de cada voo e as contas-proposta recebidas.</p>
   } @else {
     <div class="filtros-local">
-      <select [(ngModel)]="filtroUf" name="filtroUf" (change)="recarregar()">
+      <select [(ngModel)]="filtroUf" name="filtroUf" (change)="onUfChange()">
         <option value="">Estado — todos</option>
         @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
       </select>
-      <input [(ngModel)]="filtroCidade" name="filtroCidade" placeholder="Cidade (enter para filtrar)" (keyup.enter)="recarregar()">
-      <button class="btn btn-sm" (click)="recarregar()">Filtrar</button>
+      <select [(ngModel)]="filtroCidade" name="filtroCidade" (change)="recarregar()">
+        <option value="">Cidade — todas</option>
+        @for (c of cidades; track c) { <option [value]="c">{{ c }}</option> }
+      </select>
     </div>
+    @if (carregandoCidades) { <small class="hint">Carregando cidades...</small> }
     <div class="chips">
       <button class="chip" [class.ativo]="filtro === ''" (click)="filtro = ''">Todas</button>
       @for (q of qualidades; track q.valor) {
@@ -69,7 +72,7 @@ import { DialogService } from './dialog.service';
       <div class="li-acoes">
         <a class="btn-outline btn btn-sm" [routerLink]="['/app/propostas', p.id]" (click)="$event.stopPropagation()">Detalhes</a>
         @if (ehDronista && p.status === 'ABERTA') {
-          <button class="btn btn-sm" (click)="$event.stopPropagation(); aceitarDeCara(p)">✓ Aceitar de cara</button>
+          <button class="btn btn-sm" (click)="$event.stopPropagation(); aceitarDeCara(p)">✓ Aceitar proposta</button>
         }
       </div>
     </div>
@@ -105,7 +108,7 @@ import { DialogService } from './dialog.service';
     }
     .li-acoes { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
     .li-dist { color: #7cc0ff; font-weight: 600; }
-    .filtros-local { display: grid; grid-template-columns: 1fr 2fr auto; gap: .5rem; margin-bottom: .75rem; }
+    .filtros-local { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem; }
     .filtros-local select, .filtros-local input { min-height: 40px; padding: .45rem .6rem; margin-top: 0; }
     .paginacao { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.2rem; flex-wrap: wrap; }
     @media (max-width: 640px) {
@@ -126,6 +129,8 @@ export class PropostasComponent implements OnInit {
   totalPaginas = 1;
   totalElementos = 0;
   lista: any[] = [];
+  cidades: string[] = [];
+  carregandoCidades = false;
   contasPorProposta: any = {};
 
   ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -167,6 +172,7 @@ export class PropostasComponent implements OnInit {
           this.totalPaginas = r?.totalPaginas || 1;
           this.totalElementos = r?.totalElementos || this.lista.length;
           this.carregando = false;
+          this.carregarCidades(); // mantém o combo atualizado com o que existe aberto agora
         },
         error: e => { this.erro = e.error?.mensagem || 'Erro ao carregar propostas'; this.carregando = false; }
       });
@@ -176,6 +182,26 @@ export class PropostasComponent implements OnInit {
         error: e => { this.erro = e.error?.mensagem || 'Erro ao carregar propostas'; this.carregando = false; }
       });
     }
+  }
+
+  /** Recarrega o combo de cidades (oportunidades abertas, opcionalmente do UF selecionado). */
+  carregarCidades() {
+    this.carregandoCidades = true;
+    this.api.cidadesAbertas(this.filtroUf).subscribe({
+      next: (cs: string[]) => {
+        this.cidades = cs || [];
+        if (this.filtroCidade && !this.cidades.includes(this.filtroCidade)) this.filtroCidade = '';
+        this.carregandoCidades = false;
+      },
+      error: () => { this.carregandoCidades = false; }
+    });
+  }
+
+  /** Troca de UF: cidade selecionada não pertence mais ao novo estado — reseta e repopula. */
+  onUfChange() {
+    this.filtroCidade = '';
+    this.cidades = [];
+    this.recarregar();
   }
 
   listaFiltrada(): any[] {
@@ -196,7 +222,7 @@ export class PropostasComponent implements OnInit {
     this.dialog.confirmar({
       titulo: 'Aceitar o valor ofertado',
       mensagem: `Fechar o acordo por R$ ${p.valorOferecido}?\nVocê será contratado imediatamente e novas contrapropostas ficam bloqueadas.`,
-      textoConfirmar: 'Aceitar de cara'
+      textoConfirmar: 'Aceitar proposta'
     }).then(ok => {
       if (!ok) return;
       this.api.aceitarPropostaDeCara(p.id).subscribe({

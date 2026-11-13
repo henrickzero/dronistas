@@ -123,6 +123,12 @@ public class PropostaService {
         return propostas.buscarPorId(id);
     }
 
+    /** Cidades com oportunidades abertas (para o combo de filtro), opcionalmente por UF. */
+    public List<String> cidadesAbertas(String estado) {
+        String uf = LocalizacaoValidator.estado(estado);
+        return propostas.listarCidadesAbertas(uf);
+    }
+
     public void cancelar(UUID id) {
         Sessao s = Sessao.atual();
         PropostaVoo atual = buscarComGuard(s, id);

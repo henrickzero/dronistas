@@ -53,6 +53,11 @@ export class ApiService {
     p.set('page', String(page));
     return this.get(`${this.base}/propostas/abertas?${p.toString()}`);
   }
+  /** Cidades com oportunidades abertas (combo de filtro), opcionalmente filtradas por UF. */
+  cidadesAbertas(uf = ''): Observable<string[]> {
+    const q = uf ? `?estado=${encodeURIComponent(uf)}` : '';
+    return this.get(`${this.base}/propostas/abertas/cidades${q}`);
+  }
   propostasParticipando(): Observable<any[]> { return this.get(`${this.base}/propostas/participando`); }
   minhasPropostas(): Observable<any[]> { return this.get(`${this.base}/propostas/minhas`); }
   proposta(id: string): Observable<any> { return this.get(`${this.base}/propostas/${id}`); }

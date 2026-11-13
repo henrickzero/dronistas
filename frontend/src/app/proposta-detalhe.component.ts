@@ -130,9 +130,9 @@ import { MascaraValorDirective, Mascara } from './mascara';
               <button class="btn btn-outline btn-sm" (click)="editarConta = !editarConta">✏️ Atualizar proposta</button>
             </div>
             <div class="acoes-linha destaque-aceite">
-              <button class="btn" (click)="aceitarDeCara()">✓ Aceitar de cara o valor ofertado (R$ {{ p.valorOferecido }})</button>
+              <button class="btn" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
             </div>
-            <small class="hint">Aceitar de cara fecha o acordo no valor do anúncio e descarta sua contraproposta atual.</small>
+            <small class="hint">Aceitar o valor ofertado fecha o acordo no preço do anúncio e descarta sua contraproposta atual.</small>
             @if (editarConta) {
               <form (ngSubmit)="enviarConta()">
                 <label>Novo valor (R$)
@@ -148,7 +148,7 @@ import { MascaraValorDirective, Mascara } from './mascara';
           </div>
         } @else {
           <div class="acoes-linha destaque-aceite">
-            <button class="btn" (click)="aceitarDeCara()">✓ Aceitar de cara o valor ofertado (R$ {{ p.valorOferecido }})</button>
+            <button class="btn" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
           </div>
           <h2>📨 Ou envie sua conta-proposta</h2>
           <div class="card">
@@ -300,7 +300,7 @@ export class PropostaDetalheComponent implements OnInit {
     this.dialog.confirmar({
       titulo: 'Aceitar o valor ofertado',
       mensagem: `Fechar o acordo por R$ ${this.p.valorOferecido}?\nVocê será contratado imediatamente e novas contrapropostas ficam bloqueadas.`,
-      textoConfirmar: 'Aceitar de cara'
+      textoConfirmar: 'Aceitar proposta'
     }).then(ok => {
       if (!ok) return;
       this.api.aceitarPropostaDeCara(this.id).subscribe({

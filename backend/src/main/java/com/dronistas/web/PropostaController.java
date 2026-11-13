@@ -24,6 +24,12 @@ public class PropostaController {
         return toMap(propostas.abertas(estado, cidade, page));
     }
 
+    /** Cidades com oportunidades abertas (combo de filtro); opcionalmente por UF. */
+    @GetMapping("/api/propostas/abertas/cidades")
+    public List<String> cidades(@RequestParam(required = false) String estado) {
+        return propostas.cidadesAbertas(estado);
+    }
+
     private Map<String, Object> toMap(PropostaService.Pagina pg) {
         var m = new java.util.LinkedHashMap<String, Object>();
         m.put("conteudo", pg.conteudo());

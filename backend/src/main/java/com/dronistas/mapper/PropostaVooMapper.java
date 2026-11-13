@@ -69,6 +69,19 @@ public interface PropostaVooMapper {
         """)
     long contarAbertas(@Param("estado") String estado, @Param("cidade") String cidade);
 
+    /** Cidades distintas com oportunidades abertas (combo de filtro); agrupadas case-insensitive (min = nome de exibição). */
+    @Select("""
+        <script>
+        SELECT min(cidade)
+        FROM proposta_voo
+        WHERE status = 'ABERTA' AND cidade IS NOT NULL AND btrim(cidade) != ''
+        <if test="estado != null">AND estado = #{estado}</if>
+        GROUP BY lower(cidade)
+        ORDER BY min(cidade)
+        </script>
+        """)
+    List<String> listarCidadesAbertas(@Param("estado") String estado);
+
     /** Registros anteriores à V3 sem coordenadas, mas com dados suficientes para geocoding. */
     @Select("""
         SELECT * FROM proposta_voo
