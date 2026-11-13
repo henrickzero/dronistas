@@ -504,7 +504,7 @@ export class PropostaDetalheComponent implements OnInit {
     return { FULLHD: 'Full HD 1080p', '2K': '2K', '4K_30FPS': '4K 30fps', '4K_60FPS': '4K 60fps', '4K_120FPS': '4K 120fps' }[q] || q;
   }
   rotuloLocal(p: any): string {
-    const partes = [p.bairro, p.cidade, p.estado].filter((x: string) => !!x);
+    const partes = [p.logradouro, p.bairro, p.cidade, p.estado].filter((x: string) => !!x);
     const base = partes.length ? partes.join(' · ') : 'Local não informado';
     return p.local ? base + ' — ' + p.local : base;
   }

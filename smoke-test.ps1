@@ -103,20 +103,22 @@ $r = Api POST "$base/propostas" @{ titulo = 'T'; dataVoo = $dataVoo; horaVoo = '
 Check "dronista nao cria proposta -> 403" ($r.status -eq 403) ("status=$($r.status) body=$($r.body)")
 
 Write-Output "=== 4. Proposta valida + contas ==="
-$r = Api POST "$base/propostas" @{ titulo = 'Filmagem aerea do sitio'; descricao = 'Vista aerea do terreno e em volta'; local = 'Estrada do sol, km 5'; dataVoo = $dataVoo; horaVoo = '14:30'; duracaoMin = 60; qualidadeVideo = '4K_60FPS'; fps = $null; formatoVideo = 'MP4'; valorOferecido = 350; estado = 'SP'; cidade = 'Itu'; bairro = 'Zona rural'; cep = '13300000' } $tokSol
+$r = Api POST "$base/propostas" @{ titulo = 'Filmagem aerea do sitio'; descricao = 'Vista aerea do terreno e em volta'; local = 'Estrada do sol, km 5'; dataVoo = $dataVoo; horaVoo = '14:30'; duracaoMin = 60; qualidadeVideo = '4K_60FPS'; fps = $null; formatoVideo = 'MP4'; valorOferecido = 350; estado = 'SP'; cidade = 'Itu'; bairro = 'Zona rural'; logradouro = 'Rua das Acacias'; cep = '13300000' } $tokSol
 Check "criar proposta com localizacao" ($r.ok) ($r.body)
 $propostaId = $r.data.id
 
 $r = Api GET "$base/propostas/abertas" $null $tokDr1
 Check "dronista ve proposta aberta no marketplace (paginado)" ($r.ok -and ($r.data.conteudo | Where-Object { $_.id -eq $propostaId }).Count -eq 1) ($r.body)
+$d = ($r.data.conteudo | Where-Object { $_.id -eq $propostaId } | Select-Object -First 1)
+Check "logradouro persistido e retornado no marketplace" ($d -and $d.logradouro -eq 'Rua das Acacias') ($d.logradouro)
 
 $r = Api GET "$base/propostas/$propostaId" $null $tokDr1
 Check "dronista abre detalhe de proposta aberta antes de ter conta" ($r.ok -and $r.data.id -eq $propostaId) ($r.body)
 
 $r = Api GET "$base/propostas/abertas?estado=SP&cidade=itu" $null $tokDr1
 Check "filtro por UF+cidade (case-insensitive)" ($r.ok -and ($r.data.conteudo | Where-Object { $_.id -eq $propostaId }).Count -eq 1) ($r.body)
-$r = Api GET "$base/propostas/abertas?estado=RJ" $null $tokDr1
-Check "filtro por UF sem resultados (RJ)" ($r.ok -and $r.data.totalElementos -eq 0) ($r.body)
+$r = Api GET "$base/propostas/abertas?estado=RR" $null $tokDr1
+Check "filtro por UF sem resultados (RR)" ($r.ok -and $r.data.totalElementos -eq 0) ($r.body)
 
 $r = Api GET "$base/propostas/abertas/cidades?estado=SP" $null $tokDr1
 Check "combo de cidades SP inclui Itu" ($r.ok -and ($r.data -contains 'Itu')) ($r.body | Out-String)

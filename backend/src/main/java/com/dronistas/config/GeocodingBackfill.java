@@ -38,12 +38,12 @@ public class GeocodingBackfill implements CommandLineRunner {
         int feitos = 0;
         try {
             for (PropostaVoo p : propostas.listarSemCoordenadas()) {
-                double[] c = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), p.getLocal());
+                double[] c = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), p.getLogradouro(), p.getLocal());
                 if (c != null) { propostas.atualizarCoordenadas(p.getId(), c[0], c[1]); feitos++; }
                 Thread.sleep(PAUSA_MS);
             }
             for (PerfilDronista d : dronistas.listarSemCoordenadas()) {
-                double[] c = geo.resolver(d.getCep(), d.getEstado(), d.getCidade(), d.getBairro(), null);
+                double[] c = geo.resolver(d.getCep(), d.getEstado(), d.getCidade(), d.getBairro(), null, null);
                 if (c != null) { dronistas.atualizarCoordenadas(d.getId(), c[0], c[1]); feitos++; }
                 Thread.sleep(PAUSA_MS);
             }

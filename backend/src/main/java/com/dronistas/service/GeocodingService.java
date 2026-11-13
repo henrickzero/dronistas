@@ -55,7 +55,7 @@ public class GeocodingService {
     }
 
     /** [lat, lng] com a melhor precisão possível a partir dos dados do endereço, ou null. */
-    public double[] resolver(String cep, String uf, String cidade, String bairro, String local) {
+    public double[] resolver(String cep, String uf, String cidade, String bairro, String logradouro, String local) {
         RegistroCep reg = registroCep(cep);
 
         // 1. Referência textual do solicitante (prédio/condomínio/ponto) — mais específica que o CEP
@@ -63,6 +63,13 @@ public class GeocodingService {
             double[] porRef = porNominatim(junta(local,
                     first(bairro, regBairro(reg)), first(cidade, regCidade(reg)), uf));
             if (porRef != null) return porRef;
+        }
+
+        // 1b. Logradouro informado (+bairro/cidade) — precisão de rua sem depender do CEP
+        if (logradouro != null && !logradouro.isBlank()) {
+            double[] porLog = porNominatim(junta(logradouro,
+                    first(bairro, regBairro(reg)), first(cidade, regCidade(reg)), uf));
+            if (porLog != null) return porLog;
         }
 
         // 2. Rua conhecida pela BrasilAPI para o CEP + Nominatim = marcador na rua certa
@@ -89,8 +96,8 @@ public class GeocodingService {
             if (porCidade != null) return porCidade;
         }
 
-        log.warn("geocoding sem resultado p/ cep={} uf={} cidade={} bairro={} local={}",
-                cep, uf, cidade, bairro, local);
+        log.warn("geocoding sem resultado p/ cep={} uf={} cidade={} bairro={} logradouro={} local={}",
+                cep, uf, cidade, bairro, logradouro, local);
         return null;
     }
 

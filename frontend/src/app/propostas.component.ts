@@ -245,7 +245,7 @@ export class PropostasComponent implements OnInit {
     return { FULLHD: 'Full HD', '2K': '2K', '4K_30FPS': '4K30', '4K_60FPS': '4K60', '4K_120FPS': '4K120' }[q] || q;
   }
   rotuloLocal(p: any): string {
-    const partes = [p.bairro, p.cidade, p.estado].filter((x: string) => !!x);
+    const partes = [p.logradouro, p.bairro, p.cidade, p.estado].filter((x: string) => !!x);
     return partes.length ? partes.join(' · ') : (p.local || 'Local não informado');
   }
   hhmm(t: string): string { return (t || '').slice(0, 5); }

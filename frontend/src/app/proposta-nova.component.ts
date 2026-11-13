@@ -114,17 +114,23 @@ import { MascaraCepDirective, MascaraValorDirective, Mascara } from './mascara';
             <small class="hint">Marque o local exato do voo — o dronista verá o ponto exato, distância incluída.</small>
           }
         } @else {
+          @if (avisoCep) {
+            <div class="alert alert-error" style="margin:.25rem 0 .75rem">⚠️ {{ avisoCep }}</div>
+          }
           <div class="grid-local">
+            <label>CEP
+              <input [(ngModel)]="cep" name="cep" mascaraCep placeholder="00000-000" (input)="buscaCepSePossivel()">
+              @if (buscandoCep) { <small class="hint">Buscando CEP...</small> }
+            </label>
+            <label>Logradouro (rua/avenida)
+              <input [(ngModel)]="logradouro" name="logradouro" maxlength="300" (input)="logradouroAuto = false"
+                     placeholder="Preenchido automaticamente pelo CEP">
+            </label>
             <label>Estado (UF)
               <select [(ngModel)]="estado" name="estado" (change)="buscaCepSePossivel()">
                 <option value="">—</option>
                 @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
               </select>
-            </label>
-            <label>CEP
-              <input [(ngModel)]="cep" name="cep" mascaraCep placeholder="00000-000" (input)="buscaCepSePossivel()">
-              @if (buscandoCep) { <small class="hint">Buscando CEP...</small> }
-              @if (avisoCep) { <small class="hint" style="color:var(--color-error)">{{ avisoCep }}</small> }
             </label>
             <label>Cidade
               <input [(ngModel)]="cidade" name="cidade" placeholder="Ex.: Itu">
@@ -137,7 +143,7 @@ import { MascaraCepDirective, MascaraValorDirective, Mascara } from './mascara';
               <small class="hint">Alfanumérico (ex.: 123A, SN) — opcional</small>
             </label>
           </div>
-          <small class="hint">Com CEP ou cidade/UF, o sistema localiza o voo automaticamente. Você pode complementar com o mapa.</small>
+          <small class="hint">Ao completar o CEP, logradouro, estado, cidade e bairro preenchem sozinhos (quando o CEP existir). Você pode complementar com o mapa.</small>
         }
 
         <label>Sua presença no local
@@ -174,6 +180,19 @@ import { MascaraCepDirective, MascaraValorDirective, Mascara } from './mascara';
             <div class="resumo-topo"><span>Onde</span><button type="button" class="mini" (click)="irPara(4)">✏️ Editar</button></div>
             <p class="resumo-linha-txt">📍 {{ localResumo() }}</p>
             <p class="resumo-linha-txt">👤 {{ presencaTexto() }}@if (local) { · Ref.: {{ local }} }</p>
+            @if (coordPrevista) {
+              <div class="previa-mapa">
+                <div class="previa-topo">
+                  <b>🗺️ Prévia do local</b>
+                  <button type="button" class="chip" style="min-height:28px; margin:0" (click)="alternarCamadaPrevista()">
+                    {{ camadaPrevista === 'satelite' ? '🛰️ Satélite' : '🗺️ Ruas' }}
+                  </button>
+                </div>
+                <div id="mapa-previa" class="previa-area"></div>
+              </div>
+            } @else if (resolvendoPrevista) {
+              <small class="hint">🔎 Localizando o ponto no mapa...</small>
+            }
           </div>
         </div>
         <small class="hint">Revise com calma — depois de publicar, dronistas já poderão enviar contas-proposta.</small>
@@ -275,6 +294,15 @@ import { MascaraCepDirective, MascaraValorDirective, Mascara } from './mascara';
     .resumo-valor { margin: .35rem 0 0; color: var(--color-text-muted); font-size: .9rem; }
     .resumo-valor .verde { color: #6ee7a0; font-size: 1.05rem; }
     .resumo-linha-txt { margin: .25rem 0; font-size: .95rem; }
+    .previa-mapa {
+      margin-top: .7rem; border: 1px solid var(--color-border);
+      border-radius: var(--radius); overflow: hidden; background: var(--color-surface);
+    }
+    .previa-topo {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .6rem .8rem .35rem;
+    }
+    .previa-area { height: 220px; width: 100%; }
   `]
 })
 export class PropostaNovaComponent {
@@ -282,7 +310,7 @@ export class PropostaNovaComponent {
   dataVoo = ''; horaVoo = ''; duracaoMin: any = '';
   qualidadeVideo = '4K_30FPS'; fps: any = '30'; formatoVideo = 'MP4';
   valorOferecido: any = '';
-  estado = ''; cidade = ''; bairro = ''; numero = ''; cep = '';
+  estado = ''; cidade = ''; bairro = ''; logradouro = ''; logradouroAuto = false; numero = ''; cep = '';
   solicitantePresente: any = true;
   lat: number | null = null; lng: number | null = null;
   mapaAberto = false;
@@ -292,6 +320,13 @@ export class PropostaNovaComponent {
   private camadaTiles: any = null;
   buscandoCep = false; avisoCep = '';
   private ultimoCepConsultado = '';
+  cepCoords: { lat: number; lng: number } | null = null;   // coordenadas vindas do lookup do CEP
+  // Prévia do local na revisão (etapa 5)
+  coordPrevista: { lat: number; lng: number } | null = null;
+  resolvendoPrevista = false;
+  camadaPrevista: 'satelite' | 'ruas' = 'satelite';
+  private mapaPrevista: any = null;
+  private camadaTilesPrevista: any = null;
   erro = ''; ocupado = false;
 
   // Wizard
@@ -360,9 +395,9 @@ export class PropostaNovaComponent {
     return this.podeAvancar() && [1, 2, 3].every(n => this.validaPasso(n));
   }
 
-  avancar() { if (this.passo < 5 && this.podeAvancar()) { this.passo++; this.rolarTopo(); } }
+  avancar() { if (this.passo < 5 && this.podeAvancar()) { this.passo++; this.rolarTopo(); if (this.passo === 5) this.resolverPrevista(); } }
   passoAnterior() { if (this.passo > 1) { this.passo--; this.rolarTopo(); } }
-  irPara(n: number) { if (n >= 1 && n <= 5) { this.passo = n; this.rolarTopo(); } }
+  irPara(n: number) { if (n >= 1 && n <= 5) { this.passo = n; this.rolarTopo(); if (n === 5) this.resolverPrevista(); } }
   rolarTopo() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   voltarInicio() { this.router.navigate(['/app/propostas']); }
 
@@ -381,6 +416,7 @@ export class PropostaNovaComponent {
   }
   localResumo(): string {
     const partes: string[] = [];
+    if (this.logradouro) partes.push(this.logradouro);
     const cidUf = [this.cidade, this.estado].filter((x: string) => !!x).join('/');
     if (cidUf) partes.push(cidUf);
     if (this.bairro) partes.push(this.bairro);
@@ -390,9 +426,9 @@ export class PropostaNovaComponent {
     return partes.length ? partes.join(' · ') : 'não informado';
   }
 
-  // ---------- ViaCEP ----------
+  // ---------- Busca por CEP (ViaCEP -> BrasilAPI) ----------
 
-  /** ViaCEP: ao completar 8 dígitos, preenche UF/cidade/bairro vazios automaticamente. */
+  /** Ao completar 8 dígitos, preenche logradouro/UF/cidade/bairro — só os campos vazios ou autopreenchidos. */
   buscaCepSePossivel() {
     const d = (this.cep || '').replace(/\D/g, '');
     if (d.length !== 8 || d === this.ultimoCepConsultado) {
@@ -401,16 +437,83 @@ export class PropostaNovaComponent {
     }
     this.ultimoCepConsultado = d;
     this.buscandoCep = true; this.avisoCep = '';
+    this.cepCoords = null;
     this.cepService.buscar(d).subscribe({
-      next: (r: any) => {
+      next: (r) => {
         this.buscandoCep = false;
-        if (r?.erro) { this.avisoCep = 'CEP não encontrado — preencha manualmente'; return; }
-        if (r?.uf && !this.estado) this.estado = r.uf;
-        if (r?.localidade && !this.cidade) this.cidade = r.localidade;
-        if (r?.bairro && !this.bairro) this.bairro = r.bairro;
+        if (r.lat != null && r.lng != null) this.cepCoords = { lat: r.lat as number, lng: r.lng as number };
+        if (r.logradouro && (!this.logradouro || this.logradouroAuto)) {
+          this.logradouro = r.logradouro;
+          this.logradouroAuto = true;
+        }
+        if (r.uf && !this.estado) this.estado = r.uf;
+        if (r.cidade && !this.cidade) this.cidade = r.cidade;
+        if (r.bairro && !this.bairro) this.bairro = r.bairro;
       },
-      error: () => { this.buscandoCep = false; this.avisoCep = 'CEP não encontrado — preencha manualmente'; }
+      error: (e: any) => {
+        this.buscandoCep = false;
+        this.avisoCep = e?.message || 'CEP não encontrado — confira o número ou preencha o endereço manualmente';
+      }
     });
+  }
+
+  // ---------- Prévia do local (etapa 5 · revisão) ----------
+
+  /** Resolve as coordenadas da prévia: ponto do mapa -> CEP -> geocoding do endereço; então renderiza o mapa. */
+  resolverPrevista() {
+    const direto = this.lat != null
+      ? { lat: this.lat as number, lng: this.lng as number }
+      : this.cepCoords;
+    if (direto) {
+      this.coordPrevista = { lat: direto.lat, lng: direto.lng };
+      this.resolvendoPrevista = false;
+      setTimeout(() => this.iniciarMapaPrevista(), 60);
+      return;
+    }
+    const consulta = [this.logradouro, this.numero, this.bairro, this.cidade, this.estado]
+      .filter((x: string) => !!x && x.trim()).join(', ');
+    if (!consulta) { this.coordPrevista = null; return; }
+    this.resolvendoPrevista = true;
+    this.cepService.geocodarTexto(consulta).subscribe(encontrado => {
+      this.resolvendoPrevista = false;
+      this.coordPrevista = encontrado;
+      if (encontrado) setTimeout(() => this.iniciarMapaPrevista(), 60);
+    });
+  }
+
+  private async iniciarMapaPrevista() {
+    const el = document.getElementById('mapa-previa');
+    if (!el || !this.coordPrevista) return;
+    // Recarga do template (voltar/avançar) recria o container — descarta o mapa órfão
+    const container = this.mapaPrevista?.getContainer?.();
+    if (this.mapaPrevista && (!container || !container.isConnected)) {
+      this.mapaPrevista.remove();
+      this.mapaPrevista = null;
+      this.camadaTilesPrevista = null;
+    }
+    if (this.mapaPrevista) { this.mapaPrevista.invalidateSize?.(); return; }
+    try { await this.carregarLeaflet(); } catch { return; }
+    const L = (window as any).L;
+    this.mapaPrevista = L.map(el).setView([this.coordPrevista.lat, this.coordPrevista.lng], 16);
+    this.aplicarCamadaPrevista();
+    L.marker([this.coordPrevista.lat, this.coordPrevista.lng]).addTo(this.mapaPrevista);
+    setTimeout(() => this.mapaPrevista?.invalidateSize(), 100);
+  }
+
+  private aplicarCamadaPrevista() {
+    const L = (window as any).L;
+    if (!this.mapaPrevista) return;
+    if (this.camadaTilesPrevista) this.mapaPrevista.removeLayer(this.camadaTilesPrevista);
+    this.camadaTilesPrevista = this.camadaPrevista === 'satelite'
+      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19 })
+      : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    this.camadaTilesPrevista.addTo(this.mapaPrevista);
+  }
+
+  alternarCamadaPrevista() {
+    this.camadaPrevista = this.camadaPrevista === 'satelite' ? 'ruas' : 'satelite';
+    this.aplicarCamadaPrevista();
   }
 
   // ---------- Mapa (Leaflet) ----------
@@ -499,7 +602,8 @@ export class PropostaNovaComponent {
       formatoVideo: this.formatoVideo,
       valorOferecido: Mascara.numeroDeValorBr(this.valorOferecido),
       estado: this.estado || null, cidade: this.cidade || null,
-      bairro: this.bairro || null, numero: (this.numero || '').trim().toUpperCase() || null,
+      bairro: this.bairro || null, logradouro: this.logradouro || null,
+      numero: (this.numero || '').trim().toUpperCase() || null,
       solicitantePresente: this.solicitantePresente === true || this.solicitantePresente === 'true',
       lat: this.lat, lng: this.lng,
       cep: this.cep || null
