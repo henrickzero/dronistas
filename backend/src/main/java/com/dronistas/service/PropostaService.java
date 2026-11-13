@@ -64,13 +64,28 @@ public class PropostaService {
         p.setCep(LocalizacaoValidator.cep(utStr(body.get("cep"))));
         Object pres = body.get("solicitantePresente");
         p.setSolicitantePresente(pres == null || Boolean.parseBoolean(String.valueOf(pres)));
-        // Geocoding opcional: resolve coordenadas para cálculo de distância
-        double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade());
-        if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
+        // Coordenadas: prioriza ponto escolhido no mapa; senão geocoding aproximado
+        double[] mapa = coordsMapa(body.get("lat"), body.get("lng"));
+        if (mapa != null) { p.setLat(mapa[0]); p.setLng(mapa[1]); }
+        else {
+            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade());
+            if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
+        }
         p.setStatus("ABERTA");
         p.setId(UUID.randomUUID());
         propostas.inserir(p);
         return propostas.buscarPorId(p.getId());
+    }
+
+    /** Lat/lng vindos do mapa; valida faixa e retorna null se ausentes/inválidos. */
+    private double[] coordsMapa(Object lat, Object lng) {
+        if (lat == null || lng == null) return null;
+        try {
+            double la = Double.parseDouble(String.valueOf(lat));
+            double lo = Double.parseDouble(String.valueOf(lng));
+            if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
+            return new double[]{la, lo};
+        } catch (NumberFormatException e) { return null; }
     }
 
     public PropostaVoo atualizar(UUID id, Map<String, Object> body) {
@@ -97,8 +112,13 @@ public class PropostaService {
         if (body.containsKey("numero")) atual.setNumero(LocalizacaoValidator.numeroEndereco(utStr(body.get("numero"))));
         if (body.containsKey("solicitantePresente")) atual.setSolicitantePresente(Boolean.parseBoolean(String.valueOf(body.get("solicitantePresente"))));
         if (body.containsKey("cep")) atual.setCep(LocalizacaoValidator.cep(utStr(body.get("cep"))));
-        double[] coordsUpd = geo.resolver(atual.getCep(), atual.getEstado(), atual.getCidade());
-        if (coordsUpd != null) { atual.setLat(coordsUpd[0]); atual.setLng(coordsUpd[1]); }
+        // Coordenadas: prioriza ponto escolhido no mapa
+        double[] mapaUpd = coordsMapa(body.get("lat"), body.get("lng"));
+        if (mapaUpd != null) { atual.setLat(mapaUpd[0]); atual.setLng(mapaUpd[1]); }
+        else {
+            double[] coordsUpd = geo.resolver(atual.getCep(), atual.getEstado(), atual.getCidade());
+            if (coordsUpd != null) { atual.setLat(coordsUpd[0]); atual.setLng(coordsUpd[1]); }
+        }
         propostas.atualizar(atual);
         return propostas.buscarPorId(id);
     }

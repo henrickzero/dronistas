@@ -97,6 +97,12 @@ import { MascaraCepDirective } from './mascara';
             <small class="hint">Alfanumérico (ex.: 123A, SN) — opcional</small>
           </label>
         </div>
+        <button type="button" class="btn btn-block" style="margin-top:.75rem" (click)="abrirMapa()">
+          🗺️ Selecionar no mapa
+        </button>
+        @if (lat != null) {
+          <small class="hint" style="color:var(--color-success)">✓ Local marcado no mapa ({{ lat | number:'1.0-6' }}, {{ lng | number:'1.0-6' }})</small>
+        }
         <label>Sua presença no local
           <select [(ngModel)]="solicitantePresente" name="solicitantePresente">
             <option [value]="true">Estarei presente no local</option>
@@ -120,8 +126,53 @@ import { MascaraCepDirective } from './mascara';
         {{ ocupado ? 'Publicando...' : 'Publicar proposta' }}
       </button>
     </form>
-  </div>`,
-  styles: [``]
+  </div>
+
+  @if (mapaAberto) {
+    <div class="mapa-overlay" (click)="fecharMapa($event)">
+      <div class="mapa-caixa" (click)="$event.stopPropagation()">
+        <div class="mapa-topo">
+          <strong>Selecione o local do voo</strong>
+          <span style="display:flex; align-items:center; gap:.5rem">
+            <button type="button" class="chip" style="margin:0" (click)="alternarMapa()">{{ tipoMapa === 'satelite' ? '🛰️ Satélite' : '🗺️ Ruas' }}</button>
+            <button type="button" class="mapa-fechar" (click)="fecharMapa()">✕</button>
+          </span>
+        </div>
+        <div id="mapa-seletor" class="mapa-area"></div>
+        <div class="mapa-rodape">
+          <small class="hint">Toque/clique no mapa para marcar o ponto exato.</small>
+          <button type="button" class="btn" [disabled]="lat == null" (click)="confirmarMapa()">
+            {{ lat != null ? 'Confirmar local' : 'Marque um ponto no mapa' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }`,
+  styles: [`
+    .mapa-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(15, 23, 42, .55);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .mapa-caixa {
+      background: var(--color-surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow); width: min(640px, 100%);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .mapa-topo {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .75rem 1rem; border-bottom: 1px solid var(--color-border);
+    }
+    .mapa-fechar {
+      border: none; background: none; font-size: 1.1rem; cursor: pointer; color: var(--color-text-muted);
+    }
+    .mapa-area { height: 55vh; min-height: 320px; width: 100%; }
+    .mapa-rodape {
+      padding: .75rem 1rem; border-top: 1px solid var(--color-border);
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+    }
+  `]
 })
 export class PropostaNovaComponent {
   titulo = ''; descricao = ''; local = '';
@@ -130,6 +181,12 @@ export class PropostaNovaComponent {
   valorOferecido: any = '';
   estado = ''; cidade = ''; bairro = ''; numero = ''; cep = '';
   solicitantePresente: any = true;
+  lat: number | null = null; lng: number | null = null;
+  mapaAberto = false;
+  tipoMapa: 'satelite' | 'ruas' = 'satelite';
+  private marcador: any = null;
+  private mapa: any = null;
+  private camadaTiles: any = null;
   buscandoCep = false; avisoCep = '';
   private ultimoCepConsultado = '';
   erro = ''; ocupado = false;
@@ -176,6 +233,70 @@ export class PropostaNovaComponent {
     });
   }
 
+  /** Abre overlay do mapa, carregando Leaflet+CSS do CDN na primeira vez. */
+  abrirMapa() {
+    this.mapaAberto = true;
+    setTimeout(() => this.iniciarMapa(), 50);
+  }
+
+  private carregarLeaflet(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const w = window as any;
+      if (w.L) { resolve(); return; }
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Falha ao carregar mapa'));
+      document.body.appendChild(script);
+    });
+  }
+
+  private async iniciarMapa() {
+    try { await this.carregarLeaflet(); } catch { this.mapaAberto = false; return; }
+    const L = (window as any).L;
+    const el = document.getElementById('mapa-seletor');
+    if (!el) return;
+    const centro: any = this.lat != null ? [this.lat, this.lng] : [-14.235, -51.925];
+    const zoom = this.lat != null ? 16 : 4;
+    this.mapa = L.map(el).setView(centro, zoom);
+    this.aplicarCamada();
+    if (this.lat != null) this.marcador = L.marker([this.lat, this.lng]).addTo(this.mapa);
+    this.mapa.on('click', (e: any) => {
+      this.lat = +e.latlng.lat.toFixed(6);
+      this.lng = +e.latlng.lng.toFixed(6);
+      if (this.marcador) this.mapa.removeLayer(this.marcador);
+      this.marcador = L.marker([this.lat, this.lng]).addTo(this.mapa);
+    });
+    setTimeout(() => this.mapa?.invalidateSize(), 100);
+  }
+
+  private aplicarCamada() {
+    const L = (window as any).L;
+    if (!this.mapa) return;
+    if (this.camadaTiles) this.mapa.removeLayer(this.camadaTiles);
+    this.camadaTiles = this.tipoMapa === 'satelite'
+      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19 })
+      : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    this.camadaTiles.addTo(this.mapa);
+  }
+
+  alternarMapa() { this.tipoMapa = this.tipoMapa === 'satelite' ? 'ruas' : 'satelite'; this.aplicarCamada(); }
+
+  confirmarMapa() {
+    this.mapaAberto = false;
+    this.mapa?.remove(); this.mapa = null; this.marcador = null;
+  }
+
+  fecharMapa(e?: Event) {
+    e?.preventDefault?.();
+    this.mapaAberto = false;
+    this.mapa?.remove(); this.mapa = null; this.marcador = null;
+  }
+
   precisaFps(): boolean {
     return this.qualidadeVideo === 'FULLHD' || this.qualidadeVideo === '2K';
   }
@@ -192,6 +313,7 @@ export class PropostaNovaComponent {
       estado: this.estado || null, cidade: this.cidade || null,
       bairro: this.bairro || null, numero: (this.numero || '').trim().toUpperCase() || null,
       solicitantePresente: this.solicitantePresente === true || this.solicitantePresente === 'true',
+      lat: this.lat, lng: this.lng,
       cep: this.cep || null
     }).subscribe({
       next: () => {
