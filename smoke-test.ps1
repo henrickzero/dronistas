@@ -57,13 +57,13 @@ Check "registro solicitante" ($r.ok) ($r.body)
 $tokSol = $r.data.token
 
 $cpf1 = NovoCpf
-$r = Api POST "$base/auth/registrar" @{ nome = 'Carlos Dronista'; email = $emailDr1; senha = 'senha12345'; telefone = '(11) 91111-1111'; papel = 'DRONISTA'; cnpjCpf = $cpf1; licencaAnac = 'CANAC-7777777'; bio = 'Filmagens imobiliarias e eventos'; estado = 'SP'; cidade = 'Campinas'; bairro = 'Centro'; cep = '13010000' } $null
-Check "registro dronista 1 (CPF valido $cpf1)" ($r.ok) ($r.body)
+$r = Api POST "$base/auth/registrar" @{ nome = 'Carlos Dronista'; email = $emailDr1; senha = 'senha12345'; telefone = '(11) 91111-1111'; papel = 'DRONISTA'; cnpjCpf = $cpf1; licencaAnac = 'CANAC-7777777'; bio = 'Filmagens imobiliarias e eventos'; estado = 'SP'; cidade = 'Campinas'; bairro = 'Centro'; cep = '13010000'; logradouro = 'Rua Barao de Jaguara'; numero = '800'; tipoPessoa = 'CPF'; pixTipo = 'CPF'; pixChave = $cpf1 } $null
+Check "registro dronista 1 (CPF valido $cpf1, endereco completo da base)" ($r.ok) ($r.body)
 $tokDr1 = $r.data.token
 
 $cpf2 = NovoCpf
-$r = Api POST "$base/auth/registrar" @{ nome = 'Bruna Dronista'; email = $emailDr2; senha = 'senha12345'; telefone = '(11) 92222-2222'; papel = 'DRONISTA'; cnpjCpf = $cpf2; licencaAnac = 'CANAC-8888888'; bio = 'Eventos e casamentos' } $null
-Check "registro dronista 2 (CPF valido $cpf2)" ($r.ok) ($r.body)
+$r = Api POST "$base/auth/registrar" @{ nome = 'Bruna Dronista'; email = $emailDr2; senha = 'senha12345'; telefone = '(11) 92222-2222'; papel = 'DRONISTA'; cnpjCpf = $cpf2; licencaAnac = 'CANAC-8888888'; bio = 'Eventos e casamentos'; tipoPessoa = 'CPF'; pixTipo = 'CPF'; pixChave = $cpf2; documentoFotoUrl = 'https://exemplo.com/doc.jpg' } $null
+Check "registro dronista 2 (onboarding: tipoPessoa CPF + Pix titular + foto)" ($r.ok) ($r.body)
 $tokDr2 = $r.data.token
 
 $r = Api POST "$base/auth/login" @{ email = $emailSol; senha = 'senha12345' } $null
@@ -74,6 +74,9 @@ $r = Api GET "$base/perfil/me" $null $null
 Check "perfil sem token -> 401" ($r.status -eq 401) ("status=$($r.status)")
 $r = Api GET "$base/perfil/me" $null $tokDr1
 Check "perfil dronista traz localizacao (SP/Campinas/CEP)" ($r.ok -and $r.data.estado -eq 'SP' -and $r.data.cidade -eq 'Campinas' -and $r.data.cep -eq '13010-000') ($r.body | Out-String)
+Check "perfil dronista traz logradouro+numero da base (Rua Barao de Jaguara, 800)" ($r.ok -and $r.data.logradouro -eq 'Rua Barao de Jaguara' -and $r.data.numero -eq '800') ($r.body | Out-String)
+$r = Api GET "$base/perfil/me" $null $tokDr2
+Check "perfil dronista 2 traz repasse Pix + validacao ENVIADA" ($r.ok -and $r.data.pixTipo -eq 'CPF' -and $r.data.validacaoDoc -eq 'ENVIADA' -and $r.data.validacaoDocPendente -eq $false) ($r.body | Out-String)
 $r = Api POST "$base/auth/login" @{ email = 'admin@dronistas.com'; senha = 'admin123' } $null
 Check "login admin seed (ADMIN)" ($r.ok -and $r.data.papel -eq 'ADMIN') ($r.body)
 
@@ -84,6 +87,12 @@ $r = Api POST "$base/auth/registrar" @{ nome = 'X'; email = $emailSol; senha = '
 Check "registro email duplicado -> 409" ($r.status -eq 409) ("status=$($r.status) body=$($r.body)")
 $r = Api POST "$base/auth/registrar" @{ nome = 'X'; email = "curta$ts@teste.com"; senha = 'curta'; papel = 'SOLICITANTE' } $null
 Check "senha curta -> 422" ($r.status -eq 422) ("status=$($r.status)")
+
+$cpfPix = NovoCpf
+$r = Api POST "$base/auth/registrar" @{ nome = 'X'; email = "pix$ts@teste.com"; senha = 'senha12345'; papel = 'DRONISTA'; cnpjCpf = $cpfPix; tipoPessoa = 'CPF'; pixTipo = 'CPF'; pixChave = '00000000000' } $null
+Check "trava Pix titular (chave != documento) -> 422" ($r.status -eq 422) ("status=$($r.status) body=$($r.body)")
+$r = Api POST "$base/auth/registrar" @{ nome = 'X'; email = "pessoa$ts@teste.com"; senha = 'senha12345'; papel = 'DRONISTA'; cnpjCpf = $cpfPix; tipoPessoa = 'CNPJ' } $null
+Check "coerencia tipoPessoa (CNPJ escolhido, doc CPF) -> 422" ($r.status -eq 422) ("status=$($r.status) body=$($r.body)")
 
 Write-Output "=== 3. Validacao de proposta ==="
 $dataVoo = (Get-Date).AddDays(5).ToString('yyyy-MM-dd')

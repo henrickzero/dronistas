@@ -16,9 +16,13 @@ public interface PerfilDronistaMapper {
 
     @Insert("""
         INSERT INTO perfil_dronista (id, usuario_id, nome, telefone, bio, cnpj_cpf, licenca_anac,
-                                     estado, cidade, bairro, cep, lat, lng, ativo, criado_em)
+                                     estado, cidade, bairro, cep, logradouro, numero, lat, lng,
+                                     pix_tipo, pix_chave, banco, agencia, conta, tipo_conta,
+                                     documento_foto_url, validacao_doc, ativo, criado_em)
         VALUES (#{id}, #{usuarioId}, #{nome}, #{telefone}, #{bio}, #{cnpjCpf}, #{licencaAnac},
-                #{estado}, #{cidade}, #{bairro}, #{cep}, #{lat}, #{lng}, TRUE, now())
+                #{estado}, #{cidade}, #{bairro}, #{cep}, #{logradouro}, #{numero}, #{lat}, #{lng},
+                #{pixTipo}, #{pixChave}, #{banco}, #{agencia}, #{conta}, #{tipoConta},
+                #{documentoFotoUrl}, COALESCE(#{validacaoDoc}, 'PENDENTE'), TRUE, now())
         """)
     int inserir(PerfilDronista p);
 
@@ -28,7 +32,13 @@ public interface PerfilDronistaMapper {
             cnpj_cpf = COALESCE(#{cnpjCpf}, cnpj_cpf), licenca_anac = COALESCE(#{licencaAnac}, licenca_anac),
             estado = COALESCE(#{estado}, estado), cidade = COALESCE(#{cidade}, cidade),
             bairro = COALESCE(#{bairro}, bairro), cep = COALESCE(#{cep}, cep),
-            lat = COALESCE(#{lat}, lat), lng = COALESCE(#{lng}, lng)
+            logradouro = COALESCE(#{logradouro}, logradouro), numero = COALESCE(#{numero}, numero),
+            lat = COALESCE(#{lat}, lat), lng = COALESCE(#{lng}, lng),
+            pix_tipo = COALESCE(#{pixTipo}, pix_tipo), pix_chave = COALESCE(#{pixChave}, pix_chave),
+            banco = COALESCE(#{banco}, banco), agencia = COALESCE(#{agencia}, agencia),
+            conta = COALESCE(#{conta}, conta), tipo_conta = COALESCE(#{tipoConta}, tipo_conta),
+            documento_foto_url = COALESCE(#{documentoFotoUrl}, documento_foto_url),
+            validacao_doc = COALESCE(#{validacaoDoc}, validacao_doc)
         WHERE id = #{id} AND ativo
         """)
     int atualizar(PerfilDronista p);

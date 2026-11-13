@@ -15,10 +15,20 @@ public class PerfilDronista {
     private String cidade;
     private String bairro;
     private String cep;           // 00000-000
+    private String logradouro;    // rua/avenida da base (preenchido pelo CEP ou manual)
+    private String numero;        // número do endereço (alfanumérico, ex.: 123A)
     private Double lat;           // coordenadas da base de operação
     private Double lng;
     private Double notaMedia;     // média das notas 1-5 recebidas
     private int trabalhosConcluidos;
+    private String pixTipo;       // CPF | CNPJ | EMAIL | TELEFONE | ALEATORIA
+    private String pixChave;
+    private String banco;
+    private String agencia;
+    private String conta;
+    private String tipoConta;     // CORRENTE | POUPANCA
+    private String documentoFotoUrl; // link da foto do documento (validação de identidade)
+    private String validacaoDoc;  // PENDENTE | ENVIADA | APROVADA | REJEITADA
     private boolean ativo;
     private OffsetDateTime criadoEm;
 
@@ -44,6 +54,10 @@ public class PerfilDronista {
     public void setBairro(String bairro) { this.bairro = bairro; }
     public String getCep() { return cep; }
     public void setCep(String cep) { this.cep = cep; }
+    public String getLogradouro() { return logradouro; }
+    public void setLogradouro(String logradouro) { this.logradouro = logradouro; }
+    public String getNumero() { return numero; }
+    public void setNumero(String numero) { this.numero = numero; }
     public Double getLat() { return lat; }
     public void setLat(Double lat) { this.lat = lat; }
     public Double getLng() { return lng; }
@@ -52,6 +66,22 @@ public class PerfilDronista {
     public void setNotaMedia(Double notaMedia) { this.notaMedia = notaMedia; }
     public int getTrabalhosConcluidos() { return trabalhosConcluidos; }
     public void setTrabalhosConcluidos(int obras) { this.trabalhosConcluidos = obras; }
+    public String getPixTipo() { return pixTipo; }
+    public void setPixTipo(String pixTipo) { this.pixTipo = pixTipo; }
+    public String getPixChave() { return pixChave; }
+    public void setPixChave(String pixChave) { this.pixChave = pixChave; }
+    public String getBanco() { return banco; }
+    public void setBanco(String banco) { this.banco = banco; }
+    public String getAgencia() { return agencia; }
+    public void setAgencia(String agencia) { this.agencia = agencia; }
+    public String getConta() { return conta; }
+    public void setConta(String conta) { this.conta = conta; }
+    public String getTipoConta() { return tipoConta; }
+    public void setTipoConta(String tipoConta) { this.tipoConta = tipoConta; }
+    public String getDocumentoFotoUrl() { return documentoFotoUrl; }
+    public void setDocumentoFotoUrl(String documentoFotoUrl) { this.documentoFotoUrl = documentoFotoUrl; }
+    public String getValidacaoDoc() { return validacaoDoc; }
+    public void setValidacaoDoc(String validacaoDoc) { this.validacaoDoc = validacaoDoc; }
     public boolean isAtivo() { return ativo; }
     public void setAtivo(boolean ativo) { this.ativo = ativo; }
     public OffsetDateTime getCriadoEm() { return criadoEm; }

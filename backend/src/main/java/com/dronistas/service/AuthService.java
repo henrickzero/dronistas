@@ -23,7 +23,11 @@ public class AuthService {
     /** Registro: papel DRONISTA|SOLICITANTE, com dados do perfil embutidos. */
     public record RegistroRequest(String nome, String email, String senha, String telefone,
                                   String papel, String bio, String cnpjCpf, String licencaAnac, String empresa,
-                                  String estado, String cidade, String bairro, String cep) {}
+                                  String estado, String cidade, String bairro, String cep,
+                                  String logradouro, String numero,
+                                  String tipoPessoa, String pixTipo, String pixChave,
+                                  String banco, String agencia, String conta, String tipoConta,
+                                  String documentoFotoUrl) {}
     public record LoginRequest(String email, String senha) {}
     public record AuthResponse(String token, String papel, String usuarioId) {}
 
@@ -75,6 +79,27 @@ public class AuthService {
                 throw new RegraNegocioException("CAMPO_OBRIGATORIO", "CPF/CNPJ é obrigatório para dronistas");
             if (!documentos.isValido(doc))
                 throw new RegraNegocioException("DOCUMENTO_INVALIDO", "CPF/CNPJ inválido");
+
+            // Passo 1 do onboarding: "Autônomo (CPF) ou Empresa/MEI (CNPJ)?" — coerência com o documento
+            String tipoPessoa = r.tipoPessoa() == null ? "" : r.tipoPessoa().trim().toUpperCase();
+            if (!tipoPessoa.isEmpty() && !tipoPessoa.equals("CPF") && !tipoPessoa.equals("CNPJ"))
+                throw new RegraNegocioException("CAMPO_INVALIDO", "Forma de atuação inválida (Autônomo ou Empresa/MEI)");
+            if (tipoPessoa.equals("CPF") && doc.length() != 11)
+                throw new RegraNegocioException("CAMPO_INVALIDO",
+                        "Você escolheu Autônomo (CPF), mas o documento informado é um CNPJ — corrija antes de continuar");
+            if (tipoPessoa.equals("CNPJ") && doc.length() != 14)
+                throw new RegraNegocioException("CAMPO_INVALIDO",
+                        "Você escolheu Empresa/MEI (CNPJ), mas o documento informado é um CPF — corrija antes de continuar");
+
+            // Passo 2: dados para repasse (Pix/banco) com trava de titularidade
+            RepasseValidator.validarPix(r.pixTipo(), r.pixChave(), doc);
+            RepasseValidator.validarBanco(r.banco(), r.agencia(), r.conta(), r.tipoConta());
+
+            // Passo 3: validação de identidade (link do documento — opcional no cadastro)
+            String foto = r.documentoFotoUrl() == null ? null : r.documentoFotoUrl().trim();
+            if (foto != null && !foto.isBlank() && !foto.matches("^(https?://).+"))
+                throw new RegraNegocioException("CAMPO_INVALIDO", "Link do documento inválido (http/https)");
+
             PerfilDronista p = new PerfilDronista();
             p.setId(UUID.randomUUID());
             p.setUsuarioId(u.getId());
@@ -87,7 +112,17 @@ public class AuthService {
             p.setCidade(LocalizacaoValidator.texto(r.cidade(), "Cidade", 120));
             p.setBairro(LocalizacaoValidator.texto(r.bairro(), "Bairro", 120));
             p.setCep(LocalizacaoValidator.cep(r.cep()));
-            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), null, null, null);
+            p.setLogradouro(LocalizacaoValidator.texto(r.logradouro(), "Logradouro", 300));
+            p.setNumero(LocalizacaoValidator.numeroEndereco(r.numero()));
+            p.setPixTipo(r.pixTipo() == null || r.pixTipo().isBlank() ? null : r.pixTipo().trim().toUpperCase());
+            p.setPixChave(r.pixChave() == null || r.pixChave().isBlank() ? null : r.pixChave().trim());
+            p.setBanco(r.banco());
+            p.setAgencia(r.agencia());
+            p.setConta(r.conta());
+            p.setTipoConta(r.tipoConta() == null || r.tipoConta().isBlank() ? null : r.tipoConta().trim().toUpperCase());
+            p.setDocumentoFotoUrl(foto == null || foto.isBlank() ? null : foto);
+            if (foto != null && !foto.isBlank()) p.setValidacaoDoc("ENVIADA");
+            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), p.getLogradouro(), p.getNumero(), null);
             if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
             p.setNotaMedia(null);
             p.setTrabalhosConcluidos(0);
