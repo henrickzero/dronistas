@@ -141,10 +141,13 @@ public class PropostaService {
         propostas.cancelar(id);
     }
 
-    public List<PropostaVoo> minhas() {
+    public Pagina minhas(int page) {
         Sessao s = Sessao.atual();
         var perfil = perfis.requerSolicitante(s);
-        return propostas.listarPorSolicitante(perfil.getId());
+        int p = Math.max(0, page);
+        long total = propostas.contarPorSolicitante(perfil.getId());
+        List<PropostaVoo> conteudo = propostas.listarPorSolicitante(perfil.getId(), TAM_PAGINA, p * TAM_PAGINA);
+        return new Pagina(conteudo, p, total == 0 ? 0 : (int) Math.ceil((double) total / TAM_PAGINA), total);
     }
 
     /** Propostas em que o dronista logado participa (conta enviada ou aceita). */

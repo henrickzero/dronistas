@@ -228,8 +228,9 @@ $p2 = $r.data.id
 $r = Api POST "$base/propostas/$p2/cancelar" $null $tokSol
 Check "cancelar proposta aberta" ($r.ok) ($r.body)
 $r = Api GET "$base/propostas/minhas" $null $tokSol
-$cancelada = $r.data | Where-Object { $_.id -eq $p2 }
-Check "status CANCELADA na listagem" ($cancelada.status -eq 'CANCELADA') ($cancelada.status)
+$cancelada = $r.data.conteudo | Where-Object { $_.id -eq $p2 }
+Check "status CANCELADA na listagem paginada (pagina 1 conteudo)" ($cancelada.status -eq 'CANCELADA') ($cancelada.status)
+Check "minhas propostas paginada (totalPaginas/totalElementos presentes)" ($r.ok -and $null -ne $r.data.totalPaginas -and $null -ne $r.data.totalElementos) ($r.body | Out-String)
 
 Write-Output "=== 9. Aceitacao direta do valor ofertado (de cara) ==="
 $r = Api POST "$base/propostas" @{ titulo = 'Voo para aceite imediato'; dataVoo = $dataVoo; horaVoo = '11:00'; duracaoMin = 45; qualidadeVideo = '2K'; fps = 30; formatoVideo = 'LOG'; valorOferecido = 200 } $tokSol

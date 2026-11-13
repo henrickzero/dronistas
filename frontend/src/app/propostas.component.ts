@@ -85,7 +85,7 @@ import { DialogService } from './dialog.service';
     }
   }
 
-  @if (ehDronista && totalPaginas > 1) {
+  @if (totalPaginas > 1) {
     <div class="paginacao">
       <button class="btn btn-sm" [disabled]="pagina === 0" (click)="irPara(pagina - 1)">← Anterior</button>
       <span class="muted">Página {{ pagina + 1 }} de {{ totalPaginas }} · {{ totalElementos }} propostas</span>
@@ -177,8 +177,13 @@ export class PropostasComponent implements OnInit {
         error: e => { this.erro = e.error?.mensagem || 'Erro ao carregar propostas'; this.carregando = false; }
       });
     } else {
-      this.api.minhasPropostas().subscribe({
-        next: ps => { this.lista = ps || []; this.carregando = false; },
+      this.api.minhasPropostas(this.pagina).subscribe({
+        next: (r: any) => {
+          this.lista = r?.conteudo || [];
+          this.totalPaginas = r?.totalPaginas || 1;
+          this.totalElementos = r?.totalElementos || this.lista.length;
+          this.carregando = false;
+        },
         error: e => { this.erro = e.error?.mensagem || 'Erro ao carregar propostas'; this.carregando = false; }
       });
     }

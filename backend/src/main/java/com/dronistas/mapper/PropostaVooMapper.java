@@ -28,7 +28,7 @@ public interface PropostaVooMapper {
         """)
     PropostaVoo buscarPorId(@Param("id") UUID id);
 
-    /** Propostas do solicitante logado (todas, exceto canceladas ficam por último). */
+    /** Propostas do solicitante logado, paginadas (canceladas por último). */
     @Select("""
         SELECT pv.*, ps.nome AS nome_solicitante, pd.nome AS nome_dronista,
                (SELECT count(*) FROM conta_proposta cp WHERE cp.proposta_id = pv.id) AS total_contas
@@ -37,9 +37,13 @@ public interface PropostaVooMapper {
         LEFT JOIN perfil_dronista pd ON pd.id = pv.dronista_id
         WHERE pv.solicitante_id = #{solicitanteId}
         ORDER BY CASE pv.status WHEN 'CANCELADA' THEN 1 ELSE 0 END, pv.criado_em DESC
-        LIMIT 100
+        LIMIT #{limit} OFFSET #{offset}
         """)
-    List<PropostaVoo> listarPorSolicitante(@Param("solicitanteId") UUID solicitanteId);
+    List<PropostaVoo> listarPorSolicitante(@Param("solicitanteId") UUID solicitanteId,
+                                           @Param("limit") int limit, @Param("offset") int offset);
+
+    @Select("SELECT count(*) FROM proposta_voo WHERE solicitante_id = #{solicitanteId}")
+    long contarPorSolicitante(@Param("solicitanteId") UUID solicitanteId);
 
     /** Marketplace paginado com filtros opcionais: UF e/ou cidade (case-insensitive). */
     @Select("""

@@ -59,7 +59,9 @@ export class ApiService {
     return this.get(`${this.base}/propostas/abertas/cidades${q}`);
   }
   propostasParticipando(): Observable<any[]> { return this.get(`${this.base}/propostas/participando`); }
-  minhasPropostas(): Observable<any[]> { return this.get(`${this.base}/propostas/minhas`); }
+  minhasPropostas(page = 0): Observable<any> {
+    return this.get(`${this.base}/propostas/minhas?page=${page}`);
+  }
   proposta(id: string): Observable<any> { return this.get(`${this.base}/propostas/${id}`); }
   criarProposta(dados: any): Observable<any> { return this.post(`${this.base}/propostas`, dados); }
   atualizarProposta(id: string, dados: any): Observable<any> { return this.put(`${this.base}/propostas/${id}`, dados); }

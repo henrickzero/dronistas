@@ -45,10 +45,10 @@ public class PropostaController {
         return propostas.doDronista();
     }
 
-    /** Propostas do solicitante logado. */
+    /** Propostas do solicitante logado, paginadas. */
     @GetMapping("/api/propostas/minhas")
-    public List<PropostaVoo> minhas() {
-        return propostas.minhas();
+    public Map<String, Object> minhas(@RequestParam(defaultValue = "0") int page) {
+        return toMap(propostas.minhas(page));
     }
 
     @GetMapping("/api/propostas/{id}")

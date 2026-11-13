@@ -279,11 +279,15 @@ export class PropostaDetalheComponent implements OnInit {
         this.agendarMapaVisual();
         if (this.ehDronista) this.carregarLadoDronista();
         else {
-          this.api.minhasPropostas().subscribe(ms => {
-            this.ehAutor = (ms || []).some((m: any) => m.id === this.id);
+          // Autoria: comparo o solicitanteId da proposta com o perfil do logado
+          // (robusto e independente da paginação da listagem)
+          this.api.meuPerfil().subscribe(me => {
+            this.ehAutor = !!me?.perfilId && String(this.p.solicitanteId) === String(me.perfilId);
             if (this.ehAutor) this.carregarLadoAutor();
             this.carregando = false;
-          }, () => this.carregando = false);
+          }, () => {
+            this.carregando = false;
+          });
         }
       },
       error: e => { this.erro = e.error?.mensagem || 'Proposta não encontrada'; this.carregando = false; }

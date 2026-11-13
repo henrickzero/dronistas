@@ -118,8 +118,9 @@ export class DashboardComponent implements OnInit {
     } else {
       this.faltam = 3;
       this.api.minhasPropostas().subscribe({
-        next: ps => {
-          this.totais.propostas = ps?.length || 0;
+        next: (r: any) => {
+          const ps = r?.conteudo || [];
+          this.totais.propostas = r?.totalElementos || ps.length;
           this.totais.contas = (ps || []).filter((p: any) => (p.totalContas || 0) > 0).length;
         },
         error: () => {}, complete: completa });
