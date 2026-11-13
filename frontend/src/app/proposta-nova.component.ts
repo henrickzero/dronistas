@@ -92,7 +92,18 @@ import { MascaraCepDirective } from './mascara';
           <label>Bairro
             <input [(ngModel)]="bairro" name="bairro" placeholder="Opcional">
           </label>
+          <label>Número
+            <input [(ngModel)]="numero" name="numero" maxlength="10" placeholder="Ex.: 123A" style="text-transform:uppercase">
+            <small class="hint">Alfanumérico (ex.: 123A, SN) — opcional</small>
+          </label>
         </div>
+        <label>Sua presença no local
+          <select [(ngModel)]="solicitantePresente" name="solicitantePresente">
+            <option [value]="true">Estarei presente no local</option>
+            <option [value]="false">Não estarei presente — dronista realiza o voo no horário</option>
+          </select>
+          <small class="hint">Sem presença, o dronista executa sozinho no horário combinado.</small>
+        </label>
         <label>Referência / ponto de encontro
           <input [(ngModel)]="local" name="local" placeholder="Ex.: sítio bom vista, estrada do sol, km 5">
         </label>
@@ -117,7 +128,8 @@ export class PropostaNovaComponent {
   dataVoo = ''; horaVoo = ''; duracaoMin: any = '';
   qualidadeVideo = '4K_30FPS'; fps: any = '30'; formatoVideo = 'MP4';
   valorOferecido: any = '';
-  estado = ''; cidade = ''; bairro = ''; cep = '';
+  estado = ''; cidade = ''; bairro = ''; numero = ''; cep = '';
+  solicitantePresente: any = true;
   buscandoCep = false; avisoCep = '';
   private ultimoCepConsultado = '';
   erro = ''; ocupado = false;
@@ -178,7 +190,9 @@ export class PropostaNovaComponent {
       formatoVideo: this.formatoVideo,
       valorOferecido: this.valorOferecido,
       estado: this.estado || null, cidade: this.cidade || null,
-      bairro: this.bairro || null, cep: this.cep || null
+      bairro: this.bairro || null, numero: (this.numero || '').trim().toUpperCase() || null,
+      solicitantePresente: this.solicitantePresente === true || this.solicitantePresente === 'true',
+      cep: this.cep || null
     }).subscribe({
       next: () => {
         flashSet('Proposta publicada! Agora aguarde as contas-proposta dos dronistas.');

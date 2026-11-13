@@ -26,7 +26,9 @@ public class PropostaVoo {
     private String estado;          // UF (2 letras)
     private String cidade;
     private String bairro;
+    private String numero;          // número do endereço (alfanumérico, ex.: 123A)
     private String cep;             // 00000-000
+    private boolean solicitantePresente; // false = dronista realiza o voo sozinho no horário
     private Double lat;             // coordenadas para distância (geocoding opcional)
     private Double lng;
     private Double distanciaKm;     // preenchido no marketplace para o dronista logado
@@ -70,6 +72,10 @@ public class PropostaVoo {
     public void setCidade(String cidade) { this.cidade = cidade; }
     public String getBairro() { return bairro; }
     public void setBairro(String bairro) { this.bairro = bairro; }
+    public String getNumero() { return numero; }
+    public void setNumero(String numero) { this.numero = numero; }
+    public boolean isSolicitantePresente() { return solicitantePresente; }
+    public void setSolicitantePresente(boolean solicitantePresente) { this.solicitantePresente = solicitantePresente; }
     public String getCep() { return cep; }
     public void setCep(String cep) { this.cep = cep; }
     public Double getLat() { return lat; }

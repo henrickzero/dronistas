@@ -11,10 +11,10 @@ public interface PropostaVooMapper {
     @Insert("""
         INSERT INTO proposta_voo (id, solicitante_id, titulo, descricao, local, data_voo, hora_voo,
                                   duracao_min, qualidade_video, fps, formato_video, valor_oferecido,
-                                  estado, cidade, bairro, cep, lat, lng, status, criado_em)
+                                  estado, cidade, bairro, numero, cep, solicitante_presente, lat, lng, status, criado_em)
         VALUES (#{id}, #{solicitanteId}, #{titulo}, #{descricao}, #{local}, #{dataVoo}, #{horaVoo},
                 #{duracaoMin}, #{qualidadeVideo}, #{fps}, #{formatoVideo}, #{valorOferecido},
-                #{estado}, #{cidade}, #{bairro}, #{cep}, #{lat}, #{lng}, 'ABERTA', now())
+                #{estado}, #{cidade}, #{bairro}, #{numero}, #{cep}, #{solicitantePresente}, #{lat}, #{lng}, 'ABERTA', now())
         """)
     int inserir(PropostaVoo p);
 
@@ -101,7 +101,8 @@ public interface PropostaVooMapper {
             data_voo = #{dataVoo}, hora_voo = #{horaVoo}, duracao_min = #{duracaoMin},
             qualidade_video = #{qualidadeVideo}, fps = #{fps}, formato_video = #{formatoVideo},
             valor_oferecido = #{valorOferecido}, estado = #{estado}, cidade = #{cidade},
-            bairro = #{bairro}, cep = #{cep},
+            bairro = #{bairro}, numero = #{numero}, cep = #{cep},
+            solicitante_presente = #{solicitantePresente},
             lat = COALESCE(#{lat}, lat), lng = COALESCE(#{lng}, lng)
         WHERE id = #{id} AND status = 'ABERTA'
         """)

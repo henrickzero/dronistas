@@ -60,7 +60,10 @@ public class PropostaService {
         p.setEstado(LocalizacaoValidator.estado(utStr(body.get("estado"))));
         p.setCidade(LocalizacaoValidator.texto(utStr(body.get("cidade")), "Cidade", 120));
         p.setBairro(LocalizacaoValidator.texto(utStr(body.get("bairro")), "Bairro", 120));
+        p.setNumero(LocalizacaoValidator.numeroEndereco(utStr(body.get("numero"))));
         p.setCep(LocalizacaoValidator.cep(utStr(body.get("cep"))));
+        Object pres = body.get("solicitantePresente");
+        p.setSolicitantePresente(pres == null || Boolean.parseBoolean(String.valueOf(pres)));
         // Geocoding opcional: resolve coordenadas para cálculo de distância
         double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade());
         if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
@@ -91,6 +94,8 @@ public class PropostaService {
         if (body.containsKey("estado")) atual.setEstado(LocalizacaoValidator.estado(utStr(body.get("estado"))));
         if (body.containsKey("cidade")) atual.setCidade(LocalizacaoValidator.texto(utStr(body.get("cidade")), "Cidade", 120));
         if (body.containsKey("bairro")) atual.setBairro(LocalizacaoValidator.texto(utStr(body.get("bairro")), "Bairro", 120));
+        if (body.containsKey("numero")) atual.setNumero(LocalizacaoValidator.numeroEndereco(utStr(body.get("numero"))));
+        if (body.containsKey("solicitantePresente")) atual.setSolicitantePresente(Boolean.parseBoolean(String.valueOf(body.get("solicitantePresente"))));
         if (body.containsKey("cep")) atual.setCep(LocalizacaoValidator.cep(utStr(body.get("cep"))));
         double[] coordsUpd = geo.resolver(atual.getCep(), atual.getEstado(), atual.getCidade());
         if (coordsUpd != null) { atual.setLat(coordsUpd[0]); atual.setLng(coordsUpd[1]); }

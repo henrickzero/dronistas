@@ -34,4 +34,15 @@ public final class LocalizacaoValidator {
             throw new RegraNegocioException("CAMPO_INVALIDO", rotulo + " excede " + max + " caracteres");
         return t;
     }
+
+    /** Nmero do endereo: alfanumrico (ex.: 123A, SN, LT 12 QD 3), at 10 caracteres; vazio = null. */
+    public static String numeroEndereco(String v) {
+        if (v == null) return null;
+        String t = v.trim().toUpperCase();
+        if (t.isEmpty()) return null;
+        if (t.length() > 10 || !t.matches("[A-Z0-9][A-Z0-9 \\/\\-]*"))
+            throw new RegraNegocioException("CAMPO_INVALIDO",
+                "Nmero do endereo invlido — use at 10 caracteres alfanumricos (ex.: 123A)");
+        return t;
+    }
 }
