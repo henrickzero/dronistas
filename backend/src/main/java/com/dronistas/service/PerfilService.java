@@ -73,7 +73,7 @@ public class PerfilService {
             if (body.containsKey("cep")) p.setCep(com.dronistas.security.LocalizacaoValidator.cep(str(body.get("cep"))));
             // Regeocodifica quando qualquer campo de localização muda (opcional, sem quebrar a save)
             if (body.containsKey("estado") || body.containsKey("cidade") || body.containsKey("cep")) {
-                double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade());
+                double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), null);
                 if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
             }
             dronistas.atualizar(p);

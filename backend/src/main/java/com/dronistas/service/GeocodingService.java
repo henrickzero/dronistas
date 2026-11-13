@@ -12,11 +12,16 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * Resolve latitude/longitude a partir de CEP (e estado/cidade como fallback).
- * Fontes gratuitas, sem chave:
- *   1. BrasilAPI /api/cep/v2/{cep} — retorna coordinates quando disponível;
- *   2. Nominatim (OpenStreetMap) por cidade+UF — fallback aproximado ao nível de cidade.
- * Falha de rede/resultado vazio = null (distância é opcional; nunca quebra o fluxo).
+ * Resolve latitude/longitude a partir dos dados de endereço informados.
+ * Cascata (do mais preciso ao mais amplo):
+ *   1. Nominatim com a referência do solicitante (ex.: "Edificio next towers, bairro, cidade")
+ *   2. Rua conhecida pela BrasilAPI para o CEP + Nominatim — precisão de rua
+ *      (em várias cidades — ex. João Pessoa — a BrasilAPI só entrega a RUA, não o ponto)
+ *   3. Coordenadas da BrasilAPI para o CEP (precisão varia por cidade)
+ *   4. Nominatim pelo bairro + cidade
+ *   5. Nominatim pelo cidade + UF
+ * Todas gratuitas e sem chave; falha de rede/resultado vazio = null
+ * (geocoding é enriquecimento — nunca quebra o cadastro nem a listagem).
  */
 @Service
 public class GeocodingService {
@@ -40,51 +45,111 @@ public class GeocodingService {
     public GeocodingService() {
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
         f.setConnectTimeout(4000);
-        f.setReadTimeout(5000);
+        f.setReadTimeout(6000);
         this.http = new RestTemplate(f);
     }
 
-    /** [lat, lng] para o CEP informado (com UF/cidade como fallback), ou null. */
-    public double[] resolver(String cep, String uf, String cidade) {
-        if (cep != null && !cep.isBlank()) {
-            double[] porCep = porBrasilApi(cep.replaceAll("\\D", ""));
-            if (porCep != null) return porCep;
+    /** Dados de rua/bairro/cidade + coordenadas que a BrasilAPI conhece para o CEP. */
+    private static final class RegistroCep {
+        String rua; String bairro; String cidade; Double lat; Double lng;
+    }
+
+    /** [lat, lng] com a melhor precisão possível a partir dos dados do endereço, ou null. */
+    public double[] resolver(String cep, String uf, String cidade, String bairro, String local) {
+        RegistroCep reg = registroCep(cep);
+
+        // 1. Referência textual do solicitante (prédio/condomínio/ponto) — mais específica que o CEP
+        if (local != null && !local.isBlank()) {
+            double[] porRef = porNominatim(junta(local,
+                    first(bairro, regBairro(reg)), first(cidade, regCidade(reg)), uf));
+            if (porRef != null) return porRef;
         }
+
+        // 2. Rua conhecida pela BrasilAPI para o CEP + Nominatim = marcador na rua certa
+        if (reg != null && reg.rua != null) {
+            double[] porRua = porNominatim(junta(reg.rua,
+                    first(bairro, reg.bairro), first(cidade, reg.cidade), uf));
+            if (porRua != null) return porRua;
+        }
+
+        // 3. Coordenadas da BrasilAPI (precisão depende da cidade)
+        if (reg != null && reg.lat != null && reg.lng != null) {
+            return new double[]{ reg.lat, reg.lng };
+        }
+
+        // 4. Nominatim pelo bairro (precisão de bairro)
+        if (bairro != null && !bairro.isBlank()) {
+            double[] porBairro = porNominatim(junta(bairro, cidade, uf));
+            if (porBairro != null) return porBairro;
+        }
+
+        // 5. Nominatim pela cidade
         if (cidade != null && !cidade.isBlank() && uf != null && !uf.isBlank()) {
-            double[] porCidade = porNominatim(uf, cidade);
+            double[] porCidade = porNominatim(junta(cidade, uf));
             if (porCidade != null) return porCidade;
         }
-        log.warn("geocoding sem resultado p/ cep={} uf={} cidade={} — distância ficará indisponível", cep, uf, cidade);
+
+        log.warn("geocoding sem resultado p/ cep={} uf={} cidade={} bairro={} local={}",
+                cep, uf, cidade, bairro, local);
         return null;
     }
 
-    /** BrasilAPI CEP v2: https://brasilapi.com.br/api/cep/v2/{cep} */
-    @SuppressWarnings("unchecked")
-    private double[] porBrasilApi(String cepDigitos) {
-        if (cepDigitos == null || cepDigitos.length() != 8) return null;
+    private static String first(String a, String b) {
+        return (a != null && !a.isBlank()) ? a : b;
+    }
+
+    private static String regBairro(RegistroCep r) { return r == null ? null : r.bairro; }
+    private static String regCidade(RegistroCep r) { return r == null ? null : r.cidade; }
+
+    private String junta(String... partes) {
+        StringBuilder sb = new StringBuilder();
+        for (String p : partes) {
+            if (p != null && !p.isBlank()) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(p.trim());
+            }
+        }
+        return sb.length() > 0 ? sb + ", Brasil" : "";
+    }
+
+    /** Consulta a BrasilAPI pelo CEP; null se CEP vazio/inválido ou falha de rede. */
+    private RegistroCep registroCep(String cep) {
+        String digitos = cep == null ? null : cep.replaceAll("\\D", "");
+        if (digitos == null || digitos.length() != 8) return null;
         try {
-            var body = http.getForEntity("https://brasilapi.com.br/api/cep/v2/" + cepDigitos, java.util.Map.class).getBody();
+            var body = http.getForEntity("https://brasilapi.com.br/api/cep/v2/" + digitos, java.util.Map.class).getBody();
             if (body == null || Boolean.TRUE.equals(body.get("erro"))) return null;
-            Object locationObj = body.get("location");
-            if (!(locationObj instanceof java.util.Map<?, ?> location)) return null;
-            Object coordsObj = location.get("coordinates");
-            if (!(coordsObj instanceof java.util.Map<?, ?> coords)) return null;
-            Object lat = coords.get("latitude");
-            Object lng = coords.get("longitude");
-            if (lat == null || lng == null) return null;
-            return new double[]{ Double.parseDouble(lat.toString()), Double.parseDouble(lng.toString()) };
+
+            RegistroCep r = new RegistroCep();
+            if (body.get("street") instanceof String s && !s.isBlank()) r.rua = s;
+            if (body.get("neighborhood") instanceof String s && !s.isBlank()) r.bairro = s;
+            if (body.get("city") instanceof String s && !s.isBlank()) r.cidade = s;
+
+            if (body.get("location") instanceof java.util.Map<?, ?> location
+                    && location.get("coordinates") instanceof java.util.Map<?, ?> coords) {
+                Object lat = coords.get("latitude");
+                Object lng = coords.get("longitude");
+                if (lat != null && lng != null) {
+                    try {
+                        r.lat = Double.parseDouble(lat.toString());
+                        r.lng = Double.parseDouble(lng.toString());
+                    } catch (NumberFormatException ignored) { /* ponto ausente */ }
+                }
+            }
+            return (r.rua != null || r.lat != null) ? r : null;
         } catch (Exception e) {
             return null;
         }
     }
 
-    /** Nominatim: geocoding aproximado por cidade/UF (User-Agent obrigatório). */
-    private double[] porNominatim(String uf, String cidade) {
+    /** Nominatim (OpenStreetMap) por consulta textual livre (User-Agent obrigatório). */
+    private double[] porNominatim(String consulta) {
+        if (consulta == null || consulta.isBlank()) return null;
         try {
             HttpHeaders h = new HttpHeaders();
             h.set("User-Agent", "dronistas-portal/1.0 (suporte@dronistas.local)");
             var uri = UriComponentsBuilder.fromHttpUrl("https://nominatim.openstreetmap.org/search")
-                    .queryParam("q", cidade + ", " + uf + ", Brasil")
+                    .queryParam("q", consulta)
                     .queryParam("format", "json")
                     .queryParam("limit", "1")
                     .build()
@@ -98,7 +163,7 @@ public class GeocodingService {
             if (lat == null || lng == null) return null;
             return new double[]{ Double.parseDouble(lat.toString()), Double.parseDouble(lng.toString()) };
         } catch (Exception e) {
-            log.info("nominatim falhou p/ uf={} cidade={}: {}", uf, cidade, e.getMessage());
+            log.info("nominatim falhou p/ '{}': {}", consulta, e.getMessage());
             return null;
         }
     }

@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from './api.service';
 import { papelAtual, flashSet } from './papel';
 import { EstrelasComponent } from './estrelas.component';
@@ -18,7 +18,7 @@ import { MascaraValorDirective, Mascara } from './mascara';
 @Component({
   selector: 'app-proposta-detalhe',
   standalone: true,
-  imports: [FormsModule, RouterLink, EstrelasComponent, DatePipe, MascaraValorDirective],
+  imports: [FormsModule, RouterLink, EstrelasComponent, DatePipe, DecimalPipe, MascaraValorDirective],
   template: `
   <button class="volta" (click)="voltar()">← Voltar</button>
 
@@ -48,6 +48,19 @@ import { MascaraValorDirective, Mascara } from './mascara';
         </div>
       }
     </div>
+
+    @if (p.lat != null && p.lng != null) {
+      <div class="card mapa-visual">
+        <div class="mapa-visual-topo">
+          <b>📍 Local do voo</b>
+          <button type="button" class="chip" style="min-height:30px; margin:0" (click)="alternarCamadaVisual()">
+            {{ camadaVisual === 'satelite' ? '🛰️ Satélite' : '🗺️ Ruas' }}
+          </button>
+        </div>
+        <div id="mapa-detalhe" class="mapa-visual-area"></div>
+        <small class="hint" style="padding:.55rem .9rem .8rem">Ponto marcado pelo solicitante ({{ p.lat | number:'1.0-5' }}, {{ p.lng | number:'1.0-5' }}).</small>
+      </div>
+    }
 
     <!-- ===== Solicitante: contas recebidas ===== -->
     @if (ehAutor) {
@@ -219,6 +232,11 @@ import { MascaraValorDirective, Mascara } from './mascara';
   styles: [`
     .link-video { color: #3ea6ff; font-weight: 500; word-break: break-all; }
     .status-entrega { margin-top: .5rem; }
+    .mapa-visual-topo {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .7rem .9rem .4rem;
+    }
+    .mapa-visual-area { height: 260px; width: 100%; }
     .destaque-aceite {
       background: var(--color-success-bg); border: 1px solid var(--color-success);
       border-radius: var(--radius); padding: .6rem .75rem;
@@ -258,6 +276,7 @@ export class PropostaDetalheComponent implements OnInit {
     this.api.proposta(this.id).subscribe({
       next: p => {
         this.p = p;
+        this.agendarMapaVisual();
         if (this.ehDronista) this.carregarLadoDronista();
         else {
           this.api.minhasPropostas().subscribe(ms => {
@@ -269,6 +288,68 @@ export class PropostaDetalheComponent implements OnInit {
       },
       error: e => { this.erro = e.error?.mensagem || 'Proposta não encontrada'; this.carregando = false; }
     });
+  }
+
+  // ---------- Mapa do local (somente visualização) ----------
+
+  camadaVisual: 'satelite' | 'ruas' = 'satelite';
+  private mapaVisual: any = null;
+  private camadaTilesVisual: any = null;
+
+  /** Agenda a inicialização do mapa quando o template o renderizar. */
+  private agendarMapaVisual() {
+    if (this.p?.lat == null || this.p?.lng == null) return;
+    setTimeout(() => this.iniciarMapaVisual(), 50);
+  }
+
+  private carregarLeaflet(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const w = window as any;
+      if (w.L) { resolve(); return; }
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Falha ao carregar mapa'));
+      document.body.appendChild(script);
+    });
+  }
+
+  private async iniciarMapaVisual() {
+    const el = document.getElementById('mapa-detalhe');
+    if (!el || this.p?.lat == null) return;
+    // Se o mapa refere um container que saiu do DOM (re-render do template), descarta e recria
+    const container = this.mapaVisual?.getContainer?.();
+    if (this.mapaVisual && (!container || !container.isConnected)) {
+      this.mapaVisual.remove();
+      this.mapaVisual = null;
+      this.camadaTilesVisual = null;
+    }
+    if (this.mapaVisual) { this.mapaVisual.invalidateSize?.(); return; }
+    try { await this.carregarLeaflet(); } catch { return; }
+    const L = (window as any).L;
+    this.mapaVisual = L.map(el).setView([this.p.lat, this.p.lng], 16);
+    this.aplicarCamadaVisual();
+    L.marker([this.p.lat, this.p.lng]).addTo(this.mapaVisual);
+    setTimeout(() => this.mapaVisual?.invalidateSize(), 100);
+  }
+
+  private aplicarCamadaVisual() {
+    const L = (window as any).L;
+    if (!this.mapaVisual) return;
+    if (this.camadaTilesVisual) this.mapaVisual.removeLayer(this.camadaTilesVisual);
+    this.camadaTilesVisual = this.camadaVisual === 'satelite'
+      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19 })
+      : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    this.camadaTilesVisual.addTo(this.mapaVisual);
+  }
+
+  alternarCamadaVisual() {
+    this.camadaVisual = this.camadaVisual === 'satelite' ? 'ruas' : 'satelite';
+    this.aplicarCamadaVisual();
   }
 
   private carregarLadoAutor() {

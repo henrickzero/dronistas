@@ -68,7 +68,7 @@ public class PropostaService {
         double[] mapa = coordsMapa(body.get("lat"), body.get("lng"));
         if (mapa != null) { p.setLat(mapa[0]); p.setLng(mapa[1]); }
         else {
-            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade());
+            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), p.getLocal());
             if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
         }
         p.setStatus("ABERTA");
@@ -116,7 +116,7 @@ public class PropostaService {
         double[] mapaUpd = coordsMapa(body.get("lat"), body.get("lng"));
         if (mapaUpd != null) { atual.setLat(mapaUpd[0]); atual.setLng(mapaUpd[1]); }
         else {
-            double[] coordsUpd = geo.resolver(atual.getCep(), atual.getEstado(), atual.getCidade());
+            double[] coordsUpd = geo.resolver(atual.getCep(), atual.getEstado(), atual.getCidade(), atual.getBairro(), atual.getLocal());
             if (coordsUpd != null) { atual.setLat(coordsUpd[0]); atual.setLng(coordsUpd[1]); }
         }
         propostas.atualizar(atual);
