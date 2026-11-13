@@ -87,7 +87,7 @@ public class AuthService {
             p.setCidade(LocalizacaoValidator.texto(r.cidade(), "Cidade", 120));
             p.setBairro(LocalizacaoValidator.texto(r.bairro(), "Bairro", 120));
             p.setCep(LocalizacaoValidator.cep(r.cep()));
-            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), null, null);
+            double[] coords = geo.resolver(p.getCep(), p.getEstado(), p.getCidade(), p.getBairro(), null, null, null);
             if (coords != null) { p.setLat(coords[0]); p.setLng(coords[1]); }
             p.setNotaMedia(null);
             p.setTrabalhosConcluidos(0);

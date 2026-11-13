@@ -459,26 +459,42 @@ export class PropostaNovaComponent {
 
   // ---------- Prévia do local (etapa 5 · revisão) ----------
 
-  /** Resolve as coordenadas da prévia: ponto do mapa -> CEP -> geocoding do endereço; então renderiza o mapa. */
+  /** Resolve as coordenadas da prévia: ponto do mapa -> geocoding do endereço (com número) -> CEP; então renderiza o mapa. */
   resolverPrevista() {
     const direto = this.lat != null
       ? { lat: this.lat as number, lng: this.lng as number }
-      : this.cepCoords;
+      : null;
     if (direto) {
       this.coordPrevista = { lat: direto.lat, lng: direto.lng };
       this.resolvendoPrevista = false;
       setTimeout(() => this.iniciarMapaPrevista(), 60);
       return;
     }
+    // Endereço textual primeiro (porta/rua, mais preciso que o ponto do CEP em várias cidades)
     const consulta = [this.logradouro, this.numero, this.bairro, this.cidade, this.estado]
       .filter((x: string) => !!x && x.trim()).join(', ');
-    if (!consulta) { this.coordPrevista = null; return; }
-    this.resolvendoPrevista = true;
-    this.cepService.geocodarTexto(consulta).subscribe(encontrado => {
-      this.resolvendoPrevista = false;
-      this.coordPrevista = encontrado;
-      if (encontrado) setTimeout(() => this.iniciarMapaPrevista(), 60);
-    });
+    if (consulta) {
+      this.resolvendoPrevista = true;
+      this.cepService.geocodarTexto(consulta).subscribe(encontrado => {
+        this.resolvendoPrevista = false;
+        if (encontrado) {
+          this.coordPrevista = encontrado;
+          setTimeout(() => this.iniciarMapaPrevista(), 60);
+        } else if (this.cepCoords) {
+          // Sem resultado no geocoding: usa as coordenadas aproximadas do CEP
+          this.coordPrevista = this.cepCoords;
+          setTimeout(() => this.iniciarMapaPrevista(), 60);
+        }
+      });
+      return;
+    }
+    // Sem texto de endereço: coordenadas do CEP como último recurso
+    if (this.cepCoords) {
+      this.coordPrevista = this.cepCoords;
+      setTimeout(() => this.iniciarMapaPrevista(), 60);
+    } else {
+      this.coordPrevista = null;
+    }
   }
 
   private async iniciarMapaPrevista() {

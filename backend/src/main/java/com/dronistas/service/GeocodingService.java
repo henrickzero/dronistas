@@ -55,7 +55,8 @@ public class GeocodingService {
     }
 
     /** [lat, lng] com a melhor precisão possível a partir dos dados do endereço, ou null. */
-    public double[] resolver(String cep, String uf, String cidade, String bairro, String logradouro, String local) {
+    public double[] resolver(String cep, String uf, String cidade, String bairro,
+                             String logradouro, String numero, String local) {
         RegistroCep reg = registroCep(cep);
 
         // 1. Referência textual do solicitante (prédio/condomínio/ponto) — mais específica que o CEP
@@ -65,15 +66,25 @@ public class GeocodingService {
             if (porRef != null) return porRef;
         }
 
-        // 1b. Logradouro informado (+bairro/cidade) — precisão de rua sem depender do CEP
+        // 1b. Logradouro informado: tenta a PORTA (rua + número); sem nº no OSM, cai para a rua
         if (logradouro != null && !logradouro.isBlank()) {
+            if (numeroValido(numero)) {
+                double[] porPorta = porNominatim(junta(logradouro + " " + numero.trim(),
+                        first(bairro, regBairro(reg)), first(cidade, regCidade(reg)), uf));
+                if (porPorta != null) return porPorta;
+            }
             double[] porLog = porNominatim(junta(logradouro,
                     first(bairro, regBairro(reg)), first(cidade, regCidade(reg)), uf));
             if (porLog != null) return porLog;
         }
 
-        // 2. Rua conhecida pela BrasilAPI para o CEP + Nominatim = marcador na rua certa
+        // 2. Rua conhecida pela BrasilAPI para o CEP + Nominatim — porta exata quando o número existe no OSM
         if (reg != null && reg.rua != null) {
+            if (numeroValido(numero)) {
+                double[] porPorta2 = porNominatim(junta(reg.rua + " " + numero.trim(),
+                        first(bairro, reg.bairro), first(cidade, reg.cidade), uf));
+                if (porPorta2 != null) return porPorta2;
+            }
             double[] porRua = porNominatim(junta(reg.rua,
                     first(bairro, reg.bairro), first(cidade, reg.cidade), uf));
             if (porRua != null) return porRua;
@@ -103,6 +114,13 @@ public class GeocodingService {
 
     private static String first(String a, String b) {
         return (a != null && !a.isBlank()) ? a : b;
+    }
+
+    /** Número utilizável na busca de porta: ignora vazio, "SN" e "S/N". */
+    private static boolean numeroValido(String n) {
+        if (n == null) return false;
+        String t = n.trim().toUpperCase();
+        return !t.isEmpty() && !t.equals("SN") && !t.equals("S/N");
     }
 
     private static String regBairro(RegistroCep r) { return r == null ? null : r.bairro; }
