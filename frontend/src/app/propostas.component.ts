@@ -98,13 +98,13 @@ import { DialogService } from './dialog.service';
     .linha-item:hover { border-color: var(--color-primary); }
     .li-principal { display: flex; justify-content: space-between; gap: .6rem; align-items: baseline; }
     .li-titulo { font-weight: 600; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .li-valor { font-weight: 700; color: var(--color-primary-dark); white-space: nowrap; font-size: .95rem; }
+    .li-valor { font-weight: 700; color: #6ee7a0; white-space: nowrap; font-size: .95rem; }
     .li-secundaria {
       display: flex; flex-wrap: wrap; gap: .25rem .8rem;
       font-size: .78rem; color: var(--color-text-muted); margin-top: .15rem; align-items: center;
     }
     .li-acoes { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
-    .li-dist { color: var(--color-primary-dark); font-weight: 600; }
+    .li-dist { color: #7cc0ff; font-weight: 600; }
     .filtros-local { display: grid; grid-template-columns: 1fr 2fr auto; gap: .5rem; margin-bottom: .75rem; }
     .filtros-local select, .filtros-local input { min-height: 40px; padding: .45rem .6rem; margin-top: 0; }
     .paginacao { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.2rem; flex-wrap: wrap; }

@@ -77,7 +77,8 @@ import { EstrelasComponent } from './estrelas.component';
       display: flex; flex-direction: column; gap: .2rem; box-shadow: var(--shadow);
       color: inherit;
     }
-    .card-resumo .numero { font-size: 1.6rem; font-weight: 800; color: var(--color-primary-dark); }
+    .card-resumo { display: grid; gap: .2rem; }
+    .card-resumo .numero { font-size: 1.6rem; font-weight: 800; color: #6ee7a0; }
     .card-resumo .rotulo { font-size: .8rem; color: var(--color-text-muted); }
     .linha-destaque {
       display: flex; justify-content: space-between; align-items: center; gap: .75rem;

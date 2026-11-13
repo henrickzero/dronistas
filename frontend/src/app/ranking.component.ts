@@ -55,7 +55,7 @@ import { EstrelasComponent } from './estrelas.component';
   styles: [`
     .seletor { display: flex; gap: .5rem; margin-bottom: 1rem; }
     .rank { display: flex; align-items: center; gap: .9rem; }
-    .rank.top3 { border-color: var(--color-accent); background: #fffbeb; }
+    .rank.top3 { border-color: var(--color-accent); background: rgba(255, 215, 73, .06); }
     .posicao { font-size: 1.6rem; width: 2.4rem; text-align: center; flex-shrink: 0; }
     .corpo { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
     .nome { font-size: 1rem; }

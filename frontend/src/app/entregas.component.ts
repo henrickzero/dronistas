@@ -86,7 +86,7 @@ import { DialogService } from './dialog.service';
     }
   }`,
   styles: [`
-    .link-video { color: var(--color-primary-dark); font-weight: 600; word-break: break-all; }
+    .link-video { color: #3ea6ff; font-weight: 500; word-break: break-all; }
   `]
 })
 export class EntregasComponent implements OnInit {

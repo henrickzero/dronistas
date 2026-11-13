@@ -1,4 +1,5 @@
-import { Directive, ElementRef, HostListener, Input } from '@angular/core';
+import { Directive, ElementRef, HostListener, Input, Optional } from '@angular/core';
+import { NgModel } from '@angular/forms';
 
 /** Utilidades de máscara brasileira (CPF, CNPJ alfanumérico, telefone, CEP). */
 export class Mascara {
@@ -35,6 +36,32 @@ export class Mascara {
     const d = (v || '').replace(/\D/g, '').slice(0, 8);
     if (d.length <= 5) return d;
     return d.slice(0, 5) + '-' + d.slice(5);
+  }
+
+  /** Digitação de valor (modelo de centavos): dígitos -> "1.234,56" (limite R$ 9.999.999.999,99). */
+  static valorDigitado(v: string): string {
+    const d = (v || '').replace(/\D/g, '');
+    if (!d) return '';
+    const n = parseInt(d.slice(0, 11), 10);
+    if (isNaN(n)) return '';
+    const reais = Math.floor(n / 100).toLocaleString('pt-BR');
+    return `${reais},${String(n % 100).padStart(2, '0')}`;
+  }
+
+  /** Número do backend (320.5) -> "320,50" para exibição/edição. */
+  static valorDeExibicao(v: number | string): string {
+    if (v === '' || v === null || v === undefined) return '';
+    const n = Number(v);
+    if (!isFinite(n)) return '';
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  /** "3.500,25" -> 3500.25; vazio/inválido -> null. */
+  static numeroDeValorBr(v: string): number | null {
+    const s = (v || '').replace(/\./g, '').replace(',', '.').trim();
+    if (!s) return null;
+    const n = Number(s);
+    return isFinite(n) ? n : null;
   }
 }
 
@@ -74,5 +101,25 @@ export class MascaraCepDirective {
     const el = this.el.nativeElement;
     const mascarado = Mascara.cep(el.value);
     if (mascarado !== el.value) el.value = mascarado;
+  }
+}
+
+/**
+ * Máscara de valor monetário (R$). Formata enquanto digita (3500 -> "35,00")
+ * e SINCRONIZA o ngModel com o texto exibido — sem isso o backend receberia
+ * o número cru, não o valor que o usuário vê.
+ */
+@Directive({ selector: '[mascaraValor]', standalone: true })
+export class MascaraValorDirective {
+  @Input('mascaraValor') ativo: any;
+  // NgModel é anterior no elemento ([(ngModel)] vem antes de mascaraValor no template)
+  constructor(private el: ElementRef<HTMLInputElement>, @Optional() private model: NgModel | null) {}
+
+  @HostListener('input')
+  onInput() {
+    const el = this.el.nativeElement;
+    const mascarado = Mascara.valorDigitado(el.value);
+    if (mascarado !== el.value) el.value = mascarado;
+    if (this.model && this.model.value !== mascarado) this.model.viewToModelUpdate(mascarado);
   }
 }

@@ -62,7 +62,7 @@ import { papelAtual, limparSessao } from './papel';
       font-weight: 800; font-size: 1.25rem; padding: .35rem .6rem .9rem;
       color: var(--color-text); letter-spacing: -.5px;
     }
-    .sidebar-brand span { color: var(--color-primary); }
+    .sidebar-brand span { color: #3ea6ff; }
     .sidebar nav { display: flex; flex-direction: column; gap: .05rem; flex: 1; }
     .sidebar .rotulo { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--color-text-muted); padding: .5rem .6rem .35rem; }
     .sidebar nav a {

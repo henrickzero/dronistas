@@ -40,7 +40,7 @@ import { salvarSessao } from './papel';
     </div>
   </div>`,
   styles: [`
-    a { color: var(--color-primary-dark); font-weight: 600; text-decoration: none; }
+    a { color: #3ea6ff; font-weight: 600; text-decoration: none; }
     a:hover { text-decoration: underline; }
   `]
 })

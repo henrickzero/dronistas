@@ -40,7 +40,7 @@ import { ApiService } from './api.service';
     }
   }`,
   styles: [`
-    a { color: var(--color-primary-dark); }
+    a { color: #3ea6ff; }
   `]
 })
 export class ContasComponent implements OnInit {

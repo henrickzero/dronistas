@@ -7,6 +7,7 @@ import { ApiService } from './api.service';
 import { papelAtual, flashSet } from './papel';
 import { EstrelasComponent } from './estrelas.component';
 import { DialogService } from './dialog.service';
+import { MascaraValorDirective, Mascara } from './mascara';
 /**
  * Detalhe da proposta — coração do fluxo:
  * - Solicitante autora: vê as contas-proposta recebidas, aceita/recusa, aprova a entrega,
@@ -17,7 +18,7 @@ import { DialogService } from './dialog.service';
 @Component({
   selector: 'app-proposta-detalhe',
   standalone: true,
-  imports: [FormsModule, RouterLink, EstrelasComponent, DatePipe],
+  imports: [FormsModule, RouterLink, EstrelasComponent, DatePipe, MascaraValorDirective],
   template: `
   <button class="volta" (click)="voltar()">← Voltar</button>
 
@@ -38,7 +39,7 @@ import { DialogService } from './dialog.service';
         @if (ehDronista && p.distanciaKm != null) { <li>🛩️ Sua base fica a <b>~{{ p.distanciaKm }} km</b> do local do voo</li> }
         @if (p.descricao) { <li>📝 {{ p.descricao }}</li> }
         <li>👤 Solicitante: <b>{{ p.nomeSolicitante }}</b></li>
-        <li>💰 Valor oferecido: <span class="valor grande">R$ {{ p.valorOferecido }}</span></li>
+        <li>💰 Valor oferecido: <span class="valor grande" style="color:#6ee7a0">R$ {{ p.valorOferecido }}</span></li>
       </ul>
 
       @if (ehAutor && p.status === 'ABERTA') {
@@ -135,7 +136,8 @@ import { DialogService } from './dialog.service';
             @if (editarConta) {
               <form (ngSubmit)="enviarConta()">
                 <label>Novo valor (R$)
-                  <input [(ngModel)]="valorConta" name="valorConta" type="number" step="0.01" min="1" required>
+                  <input [(ngModel)]="valorConta" name="valorConta" inputmode="numeric" required
+                         mascaraValor placeholder="Ex.: 350,00">
                 </label>
                 <label>Mensagem
                   <textarea [(ngModel)]="mensagemConta" name="mensagemConta" rows="2"></textarea>
@@ -152,8 +154,8 @@ import { DialogService } from './dialog.service';
           <div class="card">
             <form (ngSubmit)="enviarConta()" #f="ngForm">
               <label>Seu preço para este trabalho (R$)
-                <input [(ngModel)]="valorConta" name="valorConta" type="number" step="0.01" min="1" required
-                       placeholder="Ex.: 320.00">
+                <input [(ngModel)]="valorConta" name="valorConta" inputmode="numeric" required
+                       mascaraValor placeholder="Ex.: 350,00">
               </label>
               <label>Mensagem ao solicitante
                 <textarea [(ngModel)]="mensagemConta" name="mensagemConta" rows="2"
@@ -215,10 +217,10 @@ import { DialogService } from './dialog.service';
     }
   }`,
   styles: [`
-    .link-video { color: var(--color-primary-dark); font-weight: 600; word-break: break-all; }
+    .link-video { color: #3ea6ff; font-weight: 500; word-break: break-all; }
     .status-entrega { margin-top: .5rem; }
     .destaque-aceite {
-      background: #fffbeb; border: 1px solid var(--color-accent);
+      background: var(--color-success-bg); border: 1px solid var(--color-success);
       border-radius: var(--radius); padding: .6rem .75rem;
     }
   `]
@@ -281,7 +283,7 @@ export class PropostaDetalheComponent implements OnInit {
     this.api.minhasContas().subscribe(cs => {
       this.minhaConta = (cs || []).find((c: any) => c.propostaId === this.id) || null;
       if (this.minhaConta) {
-        this.valorConta = this.minhaConta.valorProposto;
+        this.valorConta = Mascara.valorDeExibicao(this.minhaConta.valorProposto);
         this.mensagemConta = this.minhaConta.mensagem || '';
       }
       this.fuiAceito = !!this.minhaConta && this.minhaConta.status === 'ACEITA'
@@ -313,7 +315,7 @@ export class PropostaDetalheComponent implements OnInit {
 
   enviarConta() {
     this.erroConta = ''; this.ocupado = true;
-    this.api.enviarConta(this.id, { valorProposto: this.valorConta, mensagem: this.mensagemConta || null })
+    this.api.enviarConta(this.id, { valorProposto: Mascara.numeroDeValorBr(this.valorConta), mensagem: this.mensagemConta || null })
       .subscribe({
         next: () => { this.ocupado = false; this.editarConta = false; this.carregar(); },
         error: e => { this.ocupado = false; this.erroConta = e.error?.mensagem || 'Erro ao enviar conta-proposta'; }

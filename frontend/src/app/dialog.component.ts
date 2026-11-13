@@ -46,23 +46,23 @@ import { DialogService } from './dialog.service';
     .icone {
       width: 48px; height: 48px; margin: 0 auto .75rem; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      background: var(--color-primary-light); color: var(--color-primary-dark);
+      background: rgba(62, 166, 255, .12); color: #3ea6ff;
       font-size: 1.4rem;
     }
     .icone.perigoso { background: var(--color-error-bg); color: var(--color-error); }
-    h3 { margin: 0 0 .5rem; font-size: 1.1rem; }
+    h3 { margin: 0 0 .5rem; font-size: 1.1rem; color: var(--color-text); }
     p { margin: 0 0 1.25rem; color: var(--color-text-muted); font-size: .95rem; white-space: pre-line; }
     .acoes { display: flex; gap: .6rem; justify-content: center; }
     .btn-cancelar, .btn-ok {
-      padding: .55rem 1.3rem; border-radius: var(--radius); font-weight: 600;
+      padding: .55rem 1.3rem; border-radius: 999px; font-weight: 600;
       cursor: pointer; font-size: .925rem; border: none;
     }
-    .btn-cancelar { background: var(--color-bg); color: var(--color-text-muted); border: 1px solid var(--color-border); }
-    .btn-cancelar:hover { background: #eef2f7; }
-    .btn-ok { background: var(--color-primary); color: #fff; }
-    .btn-ok:hover { background: var(--color-primary-dark); }
-    .btn-ok.perigoso { background: var(--color-error); }
-    .btn-ok.perigoso:hover { background: #dc2626; }
+    .btn-cancelar { background: transparent; color: var(--color-text); border: 1px solid var(--color-border-strong); }
+    .btn-cancelar:hover { background: rgba(255, 255, 255, .08); }
+    .btn-ok { background: #f1f1f1; color: #0f0f0f; }
+    .btn-ok:hover { background: #fff; }
+    .btn-ok.perigoso { background: var(--color-error); color: #fff; }
+    .btn-ok.perigoso:hover { background: #e04848; }
   `]
 })
 export class DialogComponent {
