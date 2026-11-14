@@ -152,13 +152,29 @@ import { EstrelasComponent } from './estrelas.component';
           } @else if (p.validacaoDoc === 'REJEITADA') {
             <div class="alert alert-error">⚠️ Documento não pôde ser validado — envie uma foto nítida (frente e verso).</div>
           } @else {
-            <div class="alert alert-warning">📌 Pendente — para liberar seus repasses, envie a foto do seu documento uma única vez.</div>
+            <div class="alert alert-warning">📌 Pendente — para liberar seus repasses, anexe a foto do seu documento uma única vez.</div>
           }
           @if (p.validacaoDoc !== 'APROVADA') {
-            <label>Link da foto do documento (RG/CNH frente e verso)
-              <input [(ngModel)]="documentoFotoUrl" name="docFoto" type="url" placeholder="https://...">
-              <small class="hint">Para sua segurança e a liberação dos seus repasses — feito uma única vez.</small>
-            </label>
+            <div class="upload-zona">
+              <div class="upload-slot">
+                <b>1 · Documento (foto aberta / frente)</b>
+                @if (docFoneNome) {
+                  <span class="ok">✓ {{ docFoneNome }}{{ docFoneTamanho ? ' · ' + docFoneTamanho : '' }}</span>
+                } @else { <span class="falta">nenhum arquivo</span> }
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                       (change)="enviarDoc($event, 'pos')" [disabled]="uploading !== null">
+              </div>
+              <div class="upload-slot">
+                <b>2 · Verso (opcional)</b>
+                @if (docVersoNome) {
+                  <span class="ok">✓ {{ docVersoNome }}{{ docVersoTamanho ? ' · ' + docVersoTamanho : '' }}</span>
+                } @else { <span class="falta">nenhum arquivo</span> }
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                       (change)="enviarDoc($event, 'vers')" [disabled]="uploading !== null">
+              </div>
+              @if (uploading) { <small class="hint">Enviando {{ uploading === 'pos' ? 'documento' : 'verso' }}... (até 100 MB — pode demorar um pouco)</small> }
+              <small class="hint">JPG, PNG, WEBP, HEIC ou PDF · até 2 arquivos · 100 MB cada. Para sua segurança e a liberação dos seus repasses — feito uma única vez.</small>
+            </div>
           }
         }
 
@@ -182,6 +198,12 @@ import { EstrelasComponent } from './estrelas.component';
     .opcao2.selecionado { border-color: #3ea6ff; background: rgba(62, 166, 255, .06); }
     .opcao2 .titulo { font-weight: 700; }
     .opcao2 .sub { font-size: .8rem; color: var(--color-text-muted); }
+    .upload-zona { border: 1.5px dashed var(--color-border); border-radius: var(--radius); padding: .9rem; display: grid; gap: .7rem; }
+    .upload-slot { display: flex; flex-direction: column; gap: .3rem; }
+    .upload-slot b { font-size: .9rem; }
+    .upload-slot input[type="file"] { padding: .4rem; margin-top: 0; min-height: 0; font-size: .85rem; }
+    .upload-slot .ok { color: #7ee08a; font-size: .85rem; word-break: break-all; }
+    .upload-slot .falta { color: var(--color-text-muted); font-size: .85rem; }
   `]
 })
 export class PerfilComponent implements OnInit {
@@ -194,7 +216,9 @@ export class PerfilComponent implements OnInit {
   modoRepasse: 'pix' | 'banco' = 'pix';
   pixTipo = ''; pixChave = ''; pixAuto = false;
   banco = ''; agencia = ''; conta = ''; tipoConta = 'CORRENTE';
-  documentoFotoUrl = '';
+  uploading: 'pos' | 'vers' | null = null;
+  docFoneNome = ''; docFoneTamanho = '';
+  docVersoNome = ''; docVersoTamanho = '';
   buscandoCep = false; avisoCep = ''; ultimoCep = '';
   ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
   sucesso = ''; erro = ''; ocupado = false; carregando = true;
@@ -240,7 +264,8 @@ export class PerfilComponent implements OnInit {
           this.pixTipo = p.pixTipo || ''; this.pixChave = p.pixChave || '';
           this.banco = p.banco || ''; this.agencia = p.agencia || ''; this.conta = p.conta || '';
           this.tipoConta = p.tipoConta || 'CORRENTE';
-          this.documentoFotoUrl = p.documentoFotoUrl || '';
+          this.docFoneNome = p.documentoFotoUrl ? p.documentoFotoUrl.split('/').pop() : '';
+          this.docFoneTamanho = p.documentoFotoUrl ? '' : '';
         }
         this.carregando = false;
       },
@@ -253,6 +278,38 @@ export class PerfilComponent implements OnInit {
       this.pixChave = this.cnpjCpf;
       this.pixAuto = true;
     }
+  }
+
+  /** Envia 1 documento (RG/CNH) para o S3 e grava no slot correspondente (até 2 arquivos, 100 MB cada). */
+  enviarDoc(ev: any, slot: 'pos' | 'vers') {
+    const input = ev.target as HTMLInputElement;
+    const arquivo = input.files && input.files[0];
+    if (!arquivo) return;
+    this.erro = '';
+    if (arquivo.size > 100 * 1024 * 1024) {
+      this.erro = 'Arquivo maior que 100 MB — reduza a foto/escaneie em resolução menor.';
+      input.value = '';
+      return;
+    }
+    this.uploading = slot;
+    this.api.uploadDocumento(arquivo, slot).subscribe({
+      next: (r: any) => {
+        this.uploading = null;
+        const nome = arquivo.name;
+        const mb = (arquivo.size / (1024 * 1024)).toFixed(1) + ' MB';
+        if (slot === 'pos') { this.docFoneNome = nome; this.docFoneTamanho = mb; }
+        else { this.docVersoNome = nome; this.docVersoTamanho = mb; }
+        if (this.p) this.p.validacaoDoc = 'ENVIADA';
+        this.sucesso = 'Documento enviado! Em análise para liberar seus repasses.';
+        flashSet('Documento enviado.');
+        input.value = '';
+      },
+      error: e => {
+        this.uploading = null;
+        input.value = '';
+        this.erro = e.error?.mensagem || 'Falha no envio — tente novamente';
+      }
+    });
   }
 
   salvar() {
@@ -273,7 +330,9 @@ export class PerfilComponent implements OnInit {
       agencia: ehDronista && this.modoRepasse === 'banco' ? this.agencia : null,
       conta: ehDronista && this.modoRepasse === 'banco' ? this.conta : null,
       tipoConta: ehDronista && this.modoRepasse === 'banco' ? this.tipoConta : null,
-      documentoFotoUrl: ehDronista ? (this.documentoFotoUrl || null) : null
+      // Upload de documentos é feito por arquivo nesta tela (S3); nada de URL manual aqui
+      documentoFotoUrl: null,
+      documentoVersoUrl: null
     }).subscribe({
       next: p => { this.p = p; this.ocupado = false; this.sucesso = 'Perfil atualizado!'; flashSet('Perfil atualizado.'); },
       error: e => { this.ocupado = false; this.erro = e.error?.mensagem || 'Erro ao salvar'; }

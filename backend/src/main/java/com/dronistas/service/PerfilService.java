@@ -54,6 +54,7 @@ public class PerfilService {
             out.put("conta", p.getConta());
             out.put("tipoConta", p.getTipoConta());
             out.put("documentoFotoUrl", p.getDocumentoFotoUrl());
+            out.put("documentoVersoUrl", p.getDocumentoVersoUrl());
             out.put("validacaoDoc", p.getValidacaoDoc());
             out.put("validacaoDocPendente",
                     p.getValidacaoDoc() == null || "PENDENTE".equals(p.getValidacaoDoc()));
@@ -110,13 +111,15 @@ public class PerfilService {
             if (body.containsKey("agencia")) p.setAgencia(agenciaNova);
             if (body.containsKey("conta")) p.setConta(contaNova);
             if (body.containsKey("tipoConta")) p.setTipoConta(tipoContaNova == null || tipoContaNova.isBlank() ? null : tipoContaNova);
-            String fotoNova = str(body.get("documentoFotoUrl"));
-            if (fotoNova != null && !fotoNova.isBlank()) {
-                if (!fotoNova.trim().matches("^(https?://).+"))
-                    throw new RegraNegocioException("CAMPO_INVALIDO", "Link do documento inválido (http/https)");
-                p.setDocumentoFotoUrl(fotoNova.trim());
+            if (body.containsKey("documentoFotoUrl"))
+                p.setDocumentoFotoUrl(body.get("documentoFotoUrl") == null || str(body.get("documentoFotoUrl")).isBlank()
+                        ? null : str(body.get("documentoFotoUrl")).trim());
+            if (body.containsKey("documentoVersoUrl"))
+                p.setDocumentoVersoUrl(body.get("documentoVersoUrl") == null || str(body.get("documentoVersoUrl")).isBlank()
+                        ? null : str(body.get("documentoVersoUrl")).trim());
+            // Marca ENVIADA quando qualquer lado do documento é informado (upload ou URL manual)
+            if (p.getDocumentoFotoUrl() != null || p.getDocumentoVersoUrl() != null)
                 p.setValidacaoDoc("ENVIADA");
-            }
             // Regeocodifica quando qualquer campo de localização muda (opcional, sem quebrar a save)
             if (body.containsKey("estado") || body.containsKey("cidade") || body.containsKey("cep")
                     || body.containsKey("logradouro") || body.containsKey("numero")) {
@@ -142,6 +145,22 @@ public class PerfilService {
     public PerfilDronista requerDronista(Sessao s) {
         PerfilDronista p = dronistas.buscarPorUsuario(s.getUsuarioId());
         if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Perfil de dronista não encontrado");
+        return p;
+    }
+
+    /** Perfil de dronista COM identidade validada — exigido para aceitar voos/ofertar. */
+    public PerfilDronista requerDronistaAprovado(Sessao s) {
+        PerfilDronista p = requerDronista(s);
+        String status = p.getValidacaoDoc() == null ? "PENDENTE" : p.getValidacaoDoc();
+        switch (status) {
+            case "APROVADA" -> { /* liberado */ }
+            case "ENVIADA" -> throw new RegraNegocioException("CADASTRO_EM_APROVACAO",
+                    "Seu cadastro está em análise de identidade — aguarde a aprovação do documento para aceitar propostas");
+            case "REJEITADA" -> throw new RegraNegocioException("CADASTRO_EM_APROVACAO",
+                    "Seu documento não pôde ser validado — envie uma foto nítida (frente e verso) no seu perfil");
+            default -> throw new RegraNegocioException("CADASTRO_EM_APROVACAO",
+                    "Envie a foto do seu documento (RG/CNH) no seu perfil para liberar o aceite de propostas");
+        }
         return p;
     }
 

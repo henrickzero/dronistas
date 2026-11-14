@@ -88,6 +88,19 @@ export class ApiService {
     return this.post(`${this.base}/entregas/${id}/avaliar-solicitante`, { nota, comentario });
   }
 
+  // ---- Upload de documentos (dronista; bucket privado, leitura presignada) ----
+  documentosMe(): Observable<any> { return this.get(`${this.base}/documentos/me`); }
+  uploadDocumento(arquivo: File, slot: 'pos' | 'vers'): Observable<any> {
+    const fd = new FormData();
+    fd.append('arquivo', arquivo, arquivo.name);
+    // multipart sem headers Authorization via interceptores default: usa headers() + body cru
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.post(`${this.base}/documentos/upload?slot=${slot}`, fd, { headers })
+      .pipe(catchError(e => this.tratarSessao(e)));
+  }
+  documentoUrl(slot: 'pos' | 'vers'): Observable<any> { return this.get(`${this.base}/documentos/url?slot=${slot}`); }
+
   // ---- Ranking ----
   rankingDronistas(): Observable<any[]> { return this.get(`${this.base}/ranking/dronistas`); }
   rankingSolicitantes(): Observable<any[]> { return this.get(`${this.base}/ranking/solicitantes`); }

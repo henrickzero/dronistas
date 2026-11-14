@@ -202,23 +202,34 @@ import { salvarSessao } from './papel';
                 </div>
               }
 
-              <!-- ===== DRONISTA · PASSO 3: validação de identidade (amigável) ===== -->
+              <!-- ===== DRONISTA · PASSO 3: validação de identidade (amigável + upload real) ===== -->
               @if (passoDr === 3) {
                 <div class="alert alert-info">
                   🛡️ <b>Para a sua segurança e a liberação dos seus repasses,</b> precisamos validar
-                  seu documento <b>uma única vez</b>. É rápido e você pode fazer agora ou depois,
-                  no seu perfil — seus repasses continuam reservados para você enquanto isso.
+                  seu documento <b>uma única vez</b>. Anexe agora (recebemos com segurança no nosso
+                  armazenamento da AWS) ou faça depois no seu perfil.
                 </div>
 
-                <label>Link da foto do seu documento (se quiser adiantar — opcional)
-                  <input [(ngModel)]="documentoFotoUrl" name="documentoFotoUrl" type="url"
-                         placeholder="https://... (foto do RG/CNH aberto)">
-                  <small class="hint">Dica: fotografe frente e verso com boa luz. Se preferir, envie depois pelo seu perfil.</small>
-                </label>
-                <label class="chk">
-                  <input type="checkbox" [(ngModel)]="aceitouValidacao" name="aceitouValidacao" required>
-                  <span>Entendi — entrego a foto do meu documento para liberar meus repasses.</span>
-                </label>
+                <div class="upload-zona">
+                  <div class="upload-slot">
+                    <b>1 · Documento com foto (RG/CNH aberto ou frente)</b>
+                    @if (arqFone) {
+                      <span class="ok">✓ {{ arqFone.name }} · {{ tamanho(arqFone.size) }}</span>
+                    } @else { <span class="falta">nenhum arquivo</span> }
+                    <input type="file" name="arqFone" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                           (change)="pegarDoc($event, 'fone')">
+                  </div>
+                  <div class="upload-slot">
+                    <b>2 · Verso (opcional)</b>
+                    @if (arqVerso) {
+                      <span class="ok">✓ {{ arqVerso.name }} · {{ tamanho(arqVerso.size) }}</span>
+                    } @else { <span class="falta">nenhum arquivo</span> }
+                    <input type="file" name="arqVerso" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                           (change)="pegarDoc($event, 'verso')">
+                  </div>
+                  <small class="hint">JPG, PNG, WEBP, HEIC ou PDF · até 2 arquivos · 100 MB cada. Com boa luz, frente e verso.</small>
+                </div>
+                @if (erroDoc) { <div class="alert alert-error">⚠️ {{ erroDoc }}</div> }
               }
 
               @if (passoDr < 3) {
@@ -299,6 +310,13 @@ import { salvarSessao } from './papel';
 
     .chk { display: flex; align-items: flex-start; gap: .6rem; }
     .chk input { width: auto; min-height: 0; margin-top: .2rem; }
+
+    .upload-zona { border: 1.5px dashed var(--color-border); border-radius: var(--radius); padding: .9rem; display: grid; gap: .7rem; }
+    .upload-slot { display: flex; flex-direction: column; gap: .3rem; }
+    .upload-slot b { font-size: .9rem; }
+    .upload-slot input[type="file"] { padding: .4rem; margin-top: 0; min-height: 0; font-size: .85rem; }
+    .upload-slot .ok { color: #7ee08a; font-size: .85rem; word-break: break-all; }
+    .upload-slot .falta { color: var(--color-text-muted); font-size: .85rem; }
   `]
 })
 export class SitePrincipalComponent {
@@ -317,8 +335,9 @@ export class SitePrincipalComponent {
   modoRepasse: 'pix' | 'banco' = 'pix';
   pixTipo = ''; pixChave = ''; pixAuto = false;
   banco = ''; agencia = ''; conta = ''; tipoConta = 'CORRENTE';
-  documentoFotoUrl = '';
-  aceitouValidacao = false;
+  arqFone: File | null = null;     // documento com foto (RG/CNH) — até 2 arquivos, 100 MB cada
+  arqVerso: File | null = null;
+  erroDoc = '';
 
   ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -364,7 +383,8 @@ export class SitePrincipalComponent {
       if (this.modoRepasse === 'pix') return !!this.pixTipo && !!this.pixChave.trim();
       return !!this.banco.trim() && !!this.conta.trim();
     }
-    return this.aceitouValidacao;
+    // Passo 3: arquivos são opcionais (podem ser enviados depois pelo perfil)
+    return true;
   }
 
   avancarOnboarding() { if (this.passoDr < 3 && this.passoDrOk()) this.passoDr++; }
@@ -399,7 +419,23 @@ export class SitePrincipalComponent {
     });
   }
 
-  // ---------- Envio ----------
+  /** Guarda o arquivo selecionado no cliente (upload acontece após criar a conta). */
+  pegarDoc(ev: any, tipo: 'fone' | 'verso') {
+    const input = ev.target as HTMLInputElement;
+    const arquivo = input.files && input.files[0];
+    this.erroDoc = '';
+    if (!arquivo) return;
+    if (arquivo.size > 100 * 1024 * 1024) {
+      this.erroDoc = 'Arquivo maior que 100 MB — reduza a foto/escaneie em resolução menor.';
+      input.value = '';
+      return;
+    }
+    if (tipo === 'fone') this.arqFone = arquivo; else this.arqVerso = arquivo;
+  }
+
+  tamanho(bytes: number): string {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
 
   cadastrar() {
     this.erro = ''; this.sucesso = ''; this.ocupado = true;
@@ -419,12 +455,18 @@ export class SitePrincipalComponent {
       banco: ehDronista && this.modoRepasse === 'banco' ? this.banco : null,
       agencia: ehDronista && this.modoRepasse === 'banco' ? this.agencia : null,
       conta: ehDronista && this.modoRepasse === 'banco' ? this.conta : null,
-      tipoConta: ehDronista && this.modoRepasse === 'banco' ? this.tipoConta : null,
-      documentoFotoUrl: ehDronista ? (this.documentoFotoUrl || null) : null
+      tipoConta: ehDronista && this.modoRepasse === 'banco' ? this.tipoConta : null
     }).subscribe({
       next: r => {
         salvarSessao(r.token, r.papel, r.usuarioId);
-        window.location.href = '/app';
+        // Envia os documentos escolhidos (se houver) já autenticado; entra no app na sequência
+        const uploads: any[] = [];
+        if (ehDronista && this.arqFone) uploads.push(this.api.uploadDocumento(this.arqFone, 'pos'));
+        if (ehDronista && this.arqVerso) uploads.push(this.api.uploadDocumento(this.arqVerso, 'vers'));
+        if (uploads.length === 0) { window.location.href = '/app'; return; }
+        let faltam = uploads.length;
+        const fim = () => { if (--faltam <= 0) window.location.href = '/app'; };
+        for (const u of uploads) u.subscribe({ next: fim, error: fim });
       },
       error: e => {
         this.ocupado = false;

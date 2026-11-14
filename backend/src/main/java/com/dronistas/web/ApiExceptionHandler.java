@@ -17,6 +17,9 @@ public class ApiExceptionHandler {
             case "DOCUMENTO_INVALIDO", "CAMPO_INVALIDO", "CAMPO_OBRIGATORIO",
                  "SENHA_FRACA", "PAPEL_INVALIDO" -> HttpStatus.UNPROCESSABLE_ENTITY;        // 422
             case "NAO_ENCONTRADO" -> HttpStatus.NOT_FOUND;                                  // 404
+            case "UPLOAD_NAO_CONFIGURADO" -> HttpStatus.SERVICE_UNAVAILABLE;                // 503
+            case "UPLOAD_FALHOU" -> HttpStatus.BAD_GATEWAY;                                 // 502
+            case "CADASTRO_EM_APROVACAO" -> HttpStatus.FORBIDDEN;                           // 403
             case "PROIBIDO" -> HttpStatus.FORBIDDEN;                                        // 403
             case "CREDENCIAIS_INVALIDAS" -> HttpStatus.UNAUTHORIZED;                        // 401
             default -> HttpStatus.BAD_REQUEST;

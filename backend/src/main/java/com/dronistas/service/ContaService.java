@@ -25,11 +25,12 @@ public class ContaService {
         this.perfis = perfis;
     }
 
-    /** Dronista envia (ou atualiza) a conta-proposta. Uma conta por dronista enquanto ENVIADA. */
+    /** Dronista envia (ou atualiza) a conta-proposta. Uma conta por dronista enquanto ENVIADA.
+     *  Exige identidade validada — cadastro em análise visualiza, mas não participa. */
     public ContaProposta enviar(UUID propostaId, Map<String, Object> body) {
         Sessao s = Sessao.atual();
         if (!s.ehDronista()) throw new RegraNegocioException("PROIBIDO", "Apenas dronistas enviam contas-proposta");
-        var perfil = perfis.requerDronista(s);
+        var perfil = perfis.requerDronistaAprovado(s);
 
         PropostaVoo p = propostas.buscarPorId(propostaId);
         if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Proposta não encontrada");

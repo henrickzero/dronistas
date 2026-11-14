@@ -28,6 +28,7 @@ public class PerfilDronista {
     private String conta;
     private String tipoConta;     // CORRENTE | POUPANCA
     private String documentoFotoUrl; // link da foto do documento (validação de identidade)
+    private String documentoVersoUrl; // segundo arquivo (verso do RG/CNH) — até 2 arquivos
     private String validacaoDoc;  // PENDENTE | ENVIADA | APROVADA | REJEITADA
     private boolean ativo;
     private OffsetDateTime criadoEm;
@@ -80,6 +81,8 @@ public class PerfilDronista {
     public void setTipoConta(String tipoConta) { this.tipoConta = tipoConta; }
     public String getDocumentoFotoUrl() { return documentoFotoUrl; }
     public void setDocumentoFotoUrl(String documentoFotoUrl) { this.documentoFotoUrl = documentoFotoUrl; }
+    public String getDocumentoVersoUrl() { return documentoVersoUrl; }
+    public void setDocumentoVersoUrl(String documentoVersoUrl) { this.documentoVersoUrl = documentoVersoUrl; }
     public String getValidacaoDoc() { return validacaoDoc; }
     public void setValidacaoDoc(String validacaoDoc) { this.validacaoDoc = validacaoDoc; }
     public boolean isAtivo() { return ativo; }

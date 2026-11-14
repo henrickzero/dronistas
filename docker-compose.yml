@@ -27,6 +27,11 @@ services:
       DB_USER: dronistas
       DB_PASSWORD: dronistas
       JWT_SECRET: troque-em-producao-com-uma-chave-aleatoria-de-256-bits
+      # Upload S3 (credenciais vêm do arquivo .env na raiz do projeto)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME:-}
     ports:
       - "8080:8080"
 

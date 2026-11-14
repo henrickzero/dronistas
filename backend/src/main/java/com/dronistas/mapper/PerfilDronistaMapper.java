@@ -14,15 +14,24 @@ public interface PerfilDronistaMapper {
     @Select("SELECT * FROM perfil_dronista WHERE id = #{id} AND ativo")
     PerfilDronista buscarPorId(@Param("id") UUID id);
 
+    /** Fila de validação de identidade (admin): um status, ordenado pelo mais recente. */
+    @Select("""
+        SELECT * FROM perfil_dronista
+        WHERE ativo AND validacao_doc = #{status}
+        ORDER BY criado_em DESC
+        LIMIT 100
+        """)
+    List<PerfilDronista> listarPorValidacao(@Param("status") String status);
+
     @Insert("""
         INSERT INTO perfil_dronista (id, usuario_id, nome, telefone, bio, cnpj_cpf, licenca_anac,
                                      estado, cidade, bairro, cep, logradouro, numero, lat, lng,
                                      pix_tipo, pix_chave, banco, agencia, conta, tipo_conta,
-                                     documento_foto_url, validacao_doc, ativo, criado_em)
+                                     documento_foto_url, documento_verso_url, validacao_doc, ativo, criado_em)
         VALUES (#{id}, #{usuarioId}, #{nome}, #{telefone}, #{bio}, #{cnpjCpf}, #{licencaAnac},
                 #{estado}, #{cidade}, #{bairro}, #{cep}, #{logradouro}, #{numero}, #{lat}, #{lng},
                 #{pixTipo}, #{pixChave}, #{banco}, #{agencia}, #{conta}, #{tipoConta},
-                #{documentoFotoUrl}, COALESCE(#{validacaoDoc}, 'PENDENTE'), TRUE, now())
+                #{documentoFotoUrl}, #{documentoVersoUrl}, COALESCE(#{validacaoDoc}, 'PENDENTE'), TRUE, now())
         """)
     int inserir(PerfilDronista p);
 
@@ -38,6 +47,7 @@ public interface PerfilDronistaMapper {
             banco = COALESCE(#{banco}, banco), agencia = COALESCE(#{agencia}, agencia),
             conta = COALESCE(#{conta}, conta), tipo_conta = COALESCE(#{tipoConta}, tipo_conta),
             documento_foto_url = COALESCE(#{documentoFotoUrl}, documento_foto_url),
+            documento_verso_url = COALESCE(#{documentoVersoUrl}, documento_verso_url),
             validacao_doc = COALESCE(#{validacaoDoc}, validacao_doc)
         WHERE id = #{id} AND ativo
         """)

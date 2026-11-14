@@ -37,6 +37,7 @@ import { papelAtual, limparSessao } from './papel';
 
         <a routerLink="/app/entregas"><span class="ico">🎬</span> Entregas</a>
         <a routerLink="/app/ranking"><span class="ico">🏆</span> Ranking</a>
+        @if (ehAdmin) { <a routerLink="/app/validacoes"><span class="ico">✅</span> Validações</a> }
         <a routerLink="/app/perfil"><span class="ico">👤</span> Perfil</a>
       </nav>
       <button class="btn-logout" (click)="sair()">Sair</button>
@@ -130,6 +131,7 @@ import { papelAtual, limparSessao } from './papel';
 export class ShellComponent implements OnInit {
   ehDronista = false;
   ehSolicitante = false;
+  ehAdmin = false;
   menuAberto = false;
 
   constructor(private api: ApiService) {}
@@ -139,6 +141,7 @@ export class ShellComponent implements OnInit {
   ngOnInit() {
     this.ehDronista = papelAtual() === 'DRONISTA';
     this.ehSolicitante = papelAtual() === 'SOLICITANTE';
+    this.ehAdmin = papelAtual() === 'ADMIN';
     // Papel desatualizado no localStorage ou token inválido -> cai pro login
     this.api.meuPerfil().subscribe({
       error: () => { limparSessao(); window.location.href = '/login'; }

@@ -77,6 +77,18 @@ Check "perfil dronista traz localizacao (SP/Campinas/CEP)" ($r.ok -and $r.data.e
 Check "perfil dronista traz logradouro+numero da base (Rua Barao de Jaguara, 800)" ($r.ok -and $r.data.logradouro -eq 'Rua Barao de Jaguara' -and $r.data.numero -eq '800') ($r.body | Out-String)
 $r = Api GET "$base/perfil/me" $null $tokDr2
 Check "perfil dronista 2 traz repasse Pix + validacao ENVIADA" ($r.ok -and $r.data.pixTipo -eq 'CPF' -and $r.data.validacaoDoc -eq 'ENVIADA' -and $r.data.validacaoDocPendente -eq $false) ($r.body | Out-String)
+
+$r = Api GET "$base/documentos/me" $null $tokDr2
+Check "documentos/me responde com status do upload" ($r.ok -and $null -ne $r.data.validacaoDoc -and $null -ne $r.data.habilitado) ($r.body | Out-String)
+Set-Content "$env:TEMP\doc.txt" -Value 'nao sou imagem nem pdf' -Encoding UTF8
+try {
+  $rU = Invoke-RestMethod -Uri "$base/documentos/upload?slot=pos" -Method POST -Headers @{ Authorization = "Bearer $tokDr2" } -Form @{ arquivo = Get-Item "$env:TEMP\doc.txt" } -TimeoutSec 30 -ErrorAction Stop
+  Check "upload rejeita tipo invalido (txt) -> 422" ($false) ("esperava 422, veio sucesso")
+} catch {
+  $st = 0
+  if ($_.Exception.Response) { $st = [int]$_.Exception.Response.StatusCode }
+  Check "upload rejeita tipo invalido (txt) -> 422" ($st -eq 422) ("status=$($st) body=$($_.ErrorDetails.Message)")
+}
 $r = Api POST "$base/auth/login" @{ email = 'admin@dronistas.com'; senha = 'admin123' } $null
 Check "login admin seed (ADMIN)" ($r.ok -and $r.data.papel -eq 'ADMIN') ($r.body)
 
@@ -116,29 +128,57 @@ $r = Api POST "$base/propostas" @{ titulo = 'Filmagem aerea do sitio'; descricao
 Check "criar proposta com localizacao" ($r.ok) ($r.body)
 $propostaId = $r.data.id
 
-$r = Api GET "$base/propostas/abertas" $null $tokDr1
-Check "dronista ve proposta aberta no marketplace (paginado)" ($r.ok -and ($r.data.conteudo | Where-Object { $_.id -eq $propostaId }).Count -eq 1) ($r.body)
-$d = ($r.data.conteudo | Where-Object { $_.id -eq $propostaId } | Select-Object -First 1)
-Check "logradouro persistido e retornado no marketplace" ($d -and $d.logradouro -eq 'Rua das Acacias') ($d.logradouro)
+# Busca paginada: a proposta pode estar em página posterior (banco cheio de seeds/simulação)
+$propostaEncontrada = $null
+$paginas = 0
+do {
+  $r = Api GET "$base/propostas/abertas?page=$paginas" $null $tokDr1
+  $encontrada = ($r.data.conteudo | Where-Object { $_.id -eq $propostaId })
+  if ($encontrada) { $propostaEncontrada = $encontrada }
+  $paginas++
+} until ($propostaEncontrada -or $paginas -ge [Math]::Max(1, [int]$r.data.totalPaginas))
+Check "dronista ve proposta aberta no marketplace (paginado, achou na pagina $paginas)" ($r.ok -and $null -ne $propostaEncontrada) ($r.body)
+Check "logradouro persistido e retornado no marketplace" ($propostaEncontrada -and $propostaEncontrada.logradouro -eq 'Rua das Acacias') ($propostaEncontrada.logradouro)
 
 $r = Api GET "$base/propostas/$propostaId" $null $tokDr1
 Check "dronista abre detalhe de proposta aberta antes de ter conta" ($r.ok -and $r.data.id -eq $propostaId) ($r.body)
 
 $r = Api GET "$base/propostas/abertas?estado=SP&cidade=itu" $null $tokDr1
-Check "filtro por UF+cidade (case-insensitive)" ($r.ok -and ($r.data.conteudo | Where-Object { $_.id -eq $propostaId }).Count -eq 1) ($r.body)
+Check "filtro por UF+cidade (case-insensitive)" ($r.ok -and $r.data.totalElementos -ge 1) ($r.body)
 $r = Api GET "$base/propostas/abertas?estado=RR" $null $tokDr1
 Check "filtro por UF sem resultados (RR)" ($r.ok -and $r.data.totalElementos -eq 0) ($r.body)
 
 $r = Api GET "$base/propostas/abertas/cidades?estado=SP" $null $tokDr1
 Check "combo de cidades SP inclui Itu" ($r.ok -and ($r.data -contains 'Itu')) ($r.body | Out-String)
 
-$r = Api GET "$base/propostas/abertas" $null $tokDr1
-$comDist = $r.data.conteudo | Where-Object { $_.id -eq $propostaId -and $null -ne $_.distanciaKm }
-if ($comDist) {
-  Check "distancia base->voo calculada (Campinas->Itu: $($comDist.distanciaKm) km)" ([double]$comDist.distanciaKm -gt 10) ($comDist.distanciaKm)
+# distância pelo DETALHE (independe da página em que a proposta está)
+$r = Api GET "$base/propostas/$propostaId" $null $tokDr1
+if ($r.ok -and $null -ne $r.data.distanciaKm) {
+  Check "distancia base->voo calculada (Campinas->Itu: $($r.data.distanciaKm) km)" ([double]$r.data.distanciaKm -gt 10) ($r.data.distanciaKm)
 } else {
   Write-Output "SKIP : geocoding externo indisponivel agora — checagem de distancia ignorada"
 }
+
+Write-Output "=== 4b. Bloqueio de aceite com cadastro em aprovacao ==="
+$r = Api POST "$base/propostas/$propostaId/contas" @{ valorProposto = 300; mensagem = 'tentativa bloqueada' } $tokDr2
+Check "dronista com cadastro em analise NAO envia conta -> 403" ($r.status -eq 403) ("status=$($r.status) body=$($r.body)")
+$r = Api POST "$base/propostas/$propostaId/aceitar" $null $tokDr2
+Check "aceite direto bloqueado para cadastro em analise -> 403" ($r.status -eq 403) ("status=$($r.status) body=$($r.body)")
+
+$admLogin = Api POST "$base/auth/login" @{ email = 'admin@dronistas.com'; senha = 'admin123' } $null
+$tokAdm = $admLogin.data.token
+$r = Api GET "$base/admin/validacoes?status=ENVIADA" $null $tokAdm
+$dr2fila = $r.data | Where-Object { $_.nome -eq 'Bruna Dronista' } | Select-Object -First 1
+Check "admin ve dronista 2 na fila de ENVIADA" ($r.ok -and $dr2fila) ($r.body | Out-String)
+$r = Api POST "$base/admin/validacoes/$($dr2fila.perfilId)/aprovar" $null $tokAdm
+Check "admin aprova dronista 2" ($r.ok) ($r.body)
+$r = Api GET "$base/admin/validacoes?status=PENDENTE" $null $tokAdm
+$dr1fila = $r.data | Where-Object { $_.nome -eq 'Carlos Dronista' } | Select-Object -First 1
+Check "admin ve dronista 1 na fila de PENDENTE" ($r.ok -and $dr1fila) ($r.body | Out-String)
+$r = Api POST "$base/admin/validacoes/$($dr1fila.perfilId)/aprovar" $null $tokAdm
+Check "admin aprova dronista 1" ($r.ok) ($r.body)
+$r = Api GET "$base/propostas/$propostaId" $null $tokDr1
+Check "dronista ainda ve a proposta quando PENDENTE (visualiza, nao aceita)" ($r.ok -and $r.data.id -eq $propostaId) ($r.body)
 
 $r = Api POST "$base/propostas/$propostaId/contas" @{ valorProposto = 320; mensagem = 'Mavic 3 Pro, entrega em 48h' } $tokDr1
 Check "dronista 1 envia conta 320" ($r.ok) ($r.body)

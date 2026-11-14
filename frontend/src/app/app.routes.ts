@@ -9,6 +9,7 @@ import { PropostaDetalheComponent } from './proposta-detalhe.component';
 import { ContasComponent } from './contas.component';
 import { EntregasComponent } from './entregas.component';
 import { RankingComponent } from './ranking.component';
+import { ValidacoesComponent } from './validacoes.component';
 import { PerfilComponent } from './perfil.component';
 import { authGuard, solicitanteGuard, dronistaGuard } from './auth.guard';
 
@@ -27,6 +28,7 @@ export const routes: Routes = [
       { path: 'contas', canActivate: [dronistaGuard], component: ContasComponent },
       { path: 'entregas', component: EntregasComponent },
       { path: 'ranking', component: RankingComponent },
+      { path: 'validacoes', component: ValidacoesComponent },
       { path: 'perfil', component: PerfilComponent }
     ]
   },

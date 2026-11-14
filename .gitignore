@@ -1,0 +1,7 @@
+# Segredos — nunca versionar
+.env
+
+# Build local
+backend/target/
+frontend/node_modules/
+frontend/dist/

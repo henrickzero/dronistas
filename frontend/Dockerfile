@@ -12,6 +12,7 @@ COPY --from=build /app/dist/app/browser /usr/share/nginx/html
 RUN printf 'server {\n\
   listen 80;\n\
   root /usr/share/nginx/html;\n\
+  client_max_body_size 220M;\n\
   location /api/ { proxy_pass http://backend:8080; }\n\
   # index sempre fresco\n\
   location = /index.html { add_header Cache-Control "no-cache, must-revalidate"; try_files $uri =404; }\n\

@@ -72,7 +72,9 @@ import { DialogService } from './dialog.service';
       <div class="li-acoes">
         <a class="btn-outline btn btn-sm" [routerLink]="['/app/propostas', p.id]" (click)="$event.stopPropagation()">Detalhes</a>
         @if (ehDronista && p.status === 'ABERTA') {
-          <button class="btn btn-sm" (click)="$event.stopPropagation(); aceitarDeCara(p)">✓ Aceitar proposta</button>
+          <button class="btn btn-sm" [disabled]="validacaoDoc !== 'APROVADA'"
+                  [title]="validacaoDoc !== 'APROVADA' ? 'Cadastro em aprovação — veja o detalhe' : ''"
+                  (click)="$event.stopPropagation(); aceitarDeCara(p)">✓ Aceitar proposta</button>
         }
       </div>
     </div>
@@ -157,11 +159,13 @@ export class PropostasComponent implements OnInit {
       // Aviso quando o dronista ainda não tem base informada (sem distâncias na lista)
       this.api.meuPerfil().subscribe(p => {
         this.semBase = !p?.cep && !p?.cidade;
+        this.validacaoDoc = p?.validacaoDoc || 'PENDENTE';
       });
     }
   }
 
   semBase = false;
+  validacaoDoc = 'PENDENTE';   // bloqueia o aceite na lista quando não APROVADA
 
   carregar() {
     this.carregando = true; this.erro = '';
@@ -222,8 +226,17 @@ export class PropostasComponent implements OnInit {
 
   abrirDetalhe(p: any) { this.router.navigate(['/app/propostas', p.id]); }
 
-  /** Aceitação direta: fecha o acordo no valor ofertado, sem contraproposta. */
+  /** Aceitação direta: fecha o acordo no valor ofertado, sem contraproposta.
+   *  Bloqueada quando a identidade do dronista ainda não foi validada. */
   aceitarDeCara(p: any) {
+    if (this.validacaoDoc !== 'APROVADA') {
+      this.dialog.info(
+        this.validacaoDoc === 'REJEITADA'
+          ? 'Seu documento não pôde ser validado — envie uma foto nítida no seu perfil para liberar o aceite de propostas.'
+          : 'Seu cadastro está em análise de identidade — aguarde a aprovação para aceitar propostas.\nAcompanhe o status no seu perfil.',
+        'Cadastro em aprovação');
+      return;
+    }
     this.dialog.confirmar({
       titulo: 'Aceitar o valor ofertado',
       mensagem: `Fechar o acordo por R$ ${p.valorOferecido}?\nVocê será contratado imediatamente e novas contrapropostas ficam bloqueadas.`,

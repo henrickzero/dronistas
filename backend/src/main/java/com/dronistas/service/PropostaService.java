@@ -157,12 +157,13 @@ public class PropostaService {
         return propostas.listarPorDronista(perfil.getId());
     }
 
-    /** Dronista aceita de cara o valor ofertado: fecha o acordo imediatamente no preço do anúncio. */
+    /** Dronista aceita de cara o valor ofertado: fecha o acordo imediatamente no preço do anúncio.
+     *  Exige identidade validada — cadastro em análise visualiza, mas não participa. */
     @Transactional
     public PropostaVoo aceitarDireto(UUID propostaId) {
         Sessao s = Sessao.atual();
         if (!s.ehDronista()) throw new RegraNegocioException("PROIBIDO", "Apenas dronistas aceitam o valor oferecido");
-        var perfil = perfis.requerDronista(s);
+        var perfil = perfis.requerDronistaAprovado(s);
         PropostaVoo p = propostas.buscarPorId(propostaId);
         if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Proposta não encontrada");
         if (!"ABERTA".equals(p.getStatus()))

@@ -130,6 +130,23 @@ import { MascaraValorDirective, Mascara } from './mascara';
 
     <!-- ===== Dronista: enviar conta / entregar vídeo ===== -->
     @if (ehDronista) {
+      @if (p.status === 'ABERTA' && validacaoDoc !== 'APROVADA') {
+        <div class="alert alert-warning">
+          🔒 <b>Cadastro em aprovação.</b>
+          @if (validacaoDoc === 'ENVIADA') {
+            Seu documento está em análise — assim que aprovado, você poderá
+            <b>aceitar esta proposta</b>. Acompanhe o status em
+            <a routerLink="/app/perfil">seu perfil</a>.
+          } @else if (validacaoDoc === 'REJEITADA') {
+            Seu documento não pôde ser validado — envie uma foto nítida (frente e verso) no
+            <a routerLink="/app/perfil">seu perfil</a> para liberar o aceite de propostas.
+          } @else {
+            Envie a foto do seu documento (RG/CNH) no <a routerLink="/app/perfil">seu perfil</a>
+            para liberar o aceite de propostas. Você pode visualizar tudo enquanto isso.
+          }
+        </div>
+      }
+
       @if (p.status === 'ABERTA') {
         @if (minhaConta) {
           <h2>📨 Sua conta-proposta</h2>
@@ -143,7 +160,7 @@ import { MascaraValorDirective, Mascara } from './mascara';
               <button class="btn btn-outline btn-sm" (click)="editarConta = !editarConta">✏️ Atualizar proposta</button>
             </div>
             <div class="acoes-linha destaque-aceite">
-              <button class="btn" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
+              <button class="btn" [disabled]="validacaoDoc !== 'APROVADA'" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
             </div>
             <small class="hint">Aceitar o valor ofertado fecha o acordo no preço do anúncio e descarta sua contraproposta atual.</small>
             @if (editarConta) {
@@ -161,21 +178,23 @@ import { MascaraValorDirective, Mascara } from './mascara';
           </div>
         } @else {
           <div class="acoes-linha destaque-aceite">
-            <button class="btn" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
+            <button class="btn" [disabled]="validacaoDoc !== 'APROVADA'" (click)="aceitarDeCara()">✓ Aceitar o valor ofertado (R$ {{ p.valorOferecido }})</button>
           </div>
           <h2>📨 Ou envie sua conta-proposta</h2>
           <div class="card">
             <form (ngSubmit)="enviarConta()" #f="ngForm">
               <label>Seu preço para este trabalho (R$)
                 <input [(ngModel)]="valorConta" name="valorConta" inputmode="numeric" required
-                       mascaraValor placeholder="Ex.: 350,00">
+                       mascaraValor [disabled]="validacaoDoc !== 'APROVADA'"
+                       placeholder="Ex.: 350,00">
               </label>
               <label>Mensagem ao solicitante
                 <textarea [(ngModel)]="mensagemConta" name="mensagemConta" rows="2"
+                          [disabled]="validacaoDoc !== 'APROVADA'"
                           placeholder="Conte por que você é a melhor escolha, seu equipamento, experiência..."></textarea>
               </label>
               @if (erroConta) { <div class="alert alert-error">⚠️ {{ erroConta }}</div> }
-              <button class="btn btn-block" type="submit" [disabled]="f.invalid || ocupado">
+              <button class="btn btn-block" type="submit" [disabled]="f.invalid || ocupado || validacaoDoc !== 'APROVADA'">
                 {{ ocupado ? 'Enviando...' : 'Enviar conta-proposta' }}
               </button>
             </form>
@@ -259,6 +278,7 @@ export class PropostaDetalheComponent implements OnInit {
   urlVideo = ''; obsEntrega = '';
   nota: number | null = null; comentario = '';
   notaSolic: number | null = null; comentarioSolic = '';
+  validacaoDoc = 'PENDENTE';   // bloqueia aceite quando não APROVADA
 
   carregando = true; ocupado = false;
   erro = ''; erroConta = ''; erroEntrega = '';
@@ -378,6 +398,10 @@ export class PropostaDetalheComponent implements OnInit {
           this.entrega = (es || []).find((e: any) => e.contaId === this.minhaConta.id) || null;
         });
       }
+    });
+    // Cadastro em aprovação: dronista vê a proposta, mas não pode aceitar/ofertar
+    this.api.meuPerfil().subscribe(perf => {
+      this.validacaoDoc = perf?.validacaoDoc || 'PENDENTE';
     });
   }
 
