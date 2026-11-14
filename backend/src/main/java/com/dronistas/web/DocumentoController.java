@@ -1,6 +1,8 @@
 package com.dronistas.web;
 
+import com.dronistas.mapper.DronistaDocumentoMapper;
 import com.dronistas.mapper.PerfilDronistaMapper;
+import com.dronistas.model.DronistaDocumento;
 import com.dronistas.model.PerfilDronista;
 import com.dronistas.security.RegraNegocioException;
 import com.dronistas.security.Sessao;
@@ -12,95 +14,121 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * Upload de documentos do dronista (RG/CNH) para o S3.
- * - POST /api/documentos/upload?slot=pos|vers  — 1 arquivo por chamada; o perfil guarda
- *   até 2 (frente/aberto + verso). Cada upload marca validacao_doc=ENVIADA.
- * - GET /api/documentos/url?slot=... — devolve URL pré-assinada (15 min) do arquivo
- *   do próprio dronista (bucket privado; nunca link fixo).
+ * Documentos do dronista — LISTA (N arquivos, teto 10). Cada arquivo vai para o S3
+ * (bucket privado); leitura/visualização SEMPRE pelo backend autenticado.
+ * O primeiro upload marca validacao_doc=ENVIADA; admin aprova no painel.
  */
 @RestController
 public class DocumentoController {
 
     private final S3UploadService s3;
     private final PerfilDronistaMapper dronistas;
+    private final DronistaDocumentoMapper documentos;
+    private final PerfilService perfis;
 
-    public DocumentoController(S3UploadService s3, PerfilDronistaMapper dronistas) {
+    private static final int MAX_ARQUIVOS = 10; // teto por dronista
+
+    public DocumentoController(S3UploadService s3, PerfilDronistaMapper dronistas,
+                               DronistaDocumentoMapper documentos, PerfilService perfis) {
         this.s3 = s3;
         this.dronistas = dronistas;
+        this.documentos = documentos;
+        this.perfis = perfis;
     }
 
-    /** Status/URLs dos documentos do próprio dronista (presignadas a pedido do frontend). */
-    @GetMapping("/api/documentos/me")
-    public Map<String, Object> me() {
+    private PerfilDronista perfilDoLogado() {
         Sessao s = Sessao.atual();
+        if (!s.ehDronista() && !s.ehAdmin())
+            throw new RegraNegocioException("PROIBIDO", "Documentos são exclusivos do dronista");
         PerfilDronista p = dronistas.buscarPorUsuario(s.getUsuarioId());
         if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Perfil de dronista não encontrado");
+        return p;
+    }
+
+    /** Lista os documentos do próprio dronista. */
+    @GetMapping("/api/documentos/me")
+    public Map<String, Object> me() {
+        PerfilDronista p = perfilDoLogado();
+        var lista = documentos.listarPorDronista(p.getId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("habilitado", s3.habilitado());
         out.put("validacaoDoc", p.getValidacaoDoc());
-        out.put("pos", p.getDocumentoFotoUrl() != null);
-        out.put("vers", p.getDocumentoVersoUrl() != null);
+        out.put("total", lista.size());
+        out.put("documentos", lista.stream().map(d -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", d.getId().toString());
+            m.put("nome", d.getNomeOriginal());
+            m.put("tamanho", d.getTamanho());
+            m.put("contentType", d.getContentType());
+            m.put("criadoEm", d.getCriadoEm());
+            return m;
+        }).toList());
         return out;
     }
 
-    /** Envia 1 arquivo (slot pos=documento aberto/frente; vers=verso). Até 2 arquivos por dronista. */
+    /** Envia 1 arquivo (pode repetir quantas vezes quiser, até o teto de 10). */
     @PostMapping("/api/documentos/upload")
-    public ResponseEntity<Map<String, Object>> upload(@RequestParam("arquivo") MultipartFile arquivo,
-                                                      @RequestParam(defaultValue = "pos") String slot) {
+    public ResponseEntity<Map<String, Object>> upload(@RequestParam("arquivo") MultipartFile arquivo) {
         Sessao s = Sessao.atual();
-        if (!s.ehDronista() && !s.ehAdmin())
-            throw new RegraNegocioException("PROIBIDO", "Upload de documento é exclusivo do dronista");
-        String slotN = slot == null ? "pos" : slot.trim().toLowerCase();
-        if (!slotN.equals("pos") && !slotN.equals("vers"))
-            throw new RegraNegocioException("CAMPO_INVALIDO", "Slot inválido (use pos ou vers)");
+        PerfilDronista p = perfilDoLogado();
 
-        PerfilDronista p = dronistas.buscarPorUsuario(s.getUsuarioId());
-        if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Perfil de dronista não encontrado");
-
-        String atual = "vers".equals(slotN) ? p.getDocumentoVersoUrl() : p.getDocumentoFotoUrl();
-        if (atual != null && !atual.isBlank())
-            // já tem arquivo nesse slot: substitui (exclui o antigo do S3 para não acumular)
-            try { s3.excluir(chaveDa(atual)); } catch (Exception ignore) { /* best-effort */ }
+        long atuais = documentos.listarPorDronista(p.getId()).size();
+        if (atuais >= MAX_ARQUIVOS)
+            throw new RegraNegocioException("PROIBIDO",
+                    "Limite de " + MAX_ARQUIVOS + " documentos atingido — exclua um antes de enviar outro");
 
         S3UploadService.UploadResultado r = s3.enviarDocumento(arquivo);
 
-        // persiste no perfil (só o campo do slot; status -> ENVIADA)
-        if ("vers".equals(slotN)) p.setDocumentoVersoUrl(r.url());
-        else p.setDocumentoFotoUrl(r.url());
-        p.setValidacaoDoc("ENVIADA");
-        dronistas.atualizar(p);
+        DronistaDocumento d = new DronistaDocumento();
+        d.setId(UUID.randomUUID());
+        d.setDronistaId(p.getId());
+        d.setNomeOriginal(arquivo.getOriginalFilename());
+        d.setUrl(r.url());
+        d.setChaveS3(r.chave());
+        d.setTamanho(r.tamanho());
+        d.setContentType(r.contentType());
+        documentos.inserir(d);
+
+        // o primeiro documento dispara a validação de identidade
+        if (p.getValidacaoDoc() == null || "PENDENTE".equals(p.getValidacaoDoc())) {
+            p.setValidacaoDoc("ENVIADA");
+            dronistas.atualizar(p);
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("slot", slotN);
-        out.put("url", r.url());
-        out.put("tamanho", r.tamanho());
+        out.put("id", d.getId().toString());
+        out.put("nome", d.getNomeOriginal());
+        out.put("tamanho", d.getTamanho());
         out.put("validacaoDoc", "ENVIADA");
+        out.put("total", atuais + 1);
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
 
-    /** URL pré-assinada (15 min) para o próprio dronista conferir o arquivo enviado. */
-    @GetMapping("/api/documentos/url")
-    public Map<String, Object> url(@RequestParam(defaultValue = "pos") String slot) {
+    /** Exclui um documento do próprio dronista (remove o objeto do S3 também). */
+    @DeleteMapping("/api/documentos/{id}")
+    public ResponseEntity<Void> excluir(@PathVariable UUID id) {
         Sessao s = Sessao.atual();
-        PerfilDronista p = dronistas.buscarPorUsuario(s.getUsuarioId());
-        if (p == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Perfil de dronista não encontrado");
-        String url = "vers".equals(slot == null ? "pos" : slot.trim().toLowerCase())
-                ? p.getDocumentoVersoUrl() : p.getDocumentoFotoUrl();
-        if (url == null || url.isBlank())
-            throw new RegraNegocioException("NAO_ENCONTRADO", "Nenhum arquivo enviado neste slot");
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("urlPre", s3.urlPresignada(chaveDa(url)));
-        out.put("validacaoDoc", p.getValidacaoDoc());
-        return out;
+        DronistaDocumento d = documentos.buscarDoUsuario(id, s.getUsuarioId());
+        if (d == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Documento não encontrado");
+        try { s3.excluir(d.getChaveS3()); } catch (Exception ignore) { /* best-effort */ }
+        documentos.excluir(id);
+        return ResponseEntity.ok().build();
     }
 
-    /** Extrai a chave do objeto a partir da URL https://bucket.s3.region.amazonaws.com/<chave>. */
-    private String chaveDa(String url) {
-        int i = url.indexOf(".amazonaws.com/");
-        if (i < 0) throw new RegraNegocioException("CAMPO_INVALIDO", "URL de documento inválida");
-        return url.substring(i + ".amazonaws.com/".length());
+    /** Lê o conteúdo do arquivo (streaming, autenticado) — admin ou dono. */
+    @GetMapping("/api/documentos/{id}/conteudo")
+    public ResponseEntity<org.springframework.core.io.Resource> conteudo(@PathVariable UUID id) {
+        Sessao s = Sessao.atual();
+        DronistaDocumento d = documentos.buscarPorId(id);
+        if (d == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Documento não encontrado");
+        boolean dono = d.getDronistaId().equals(perfilDoLogado().getId());
+        if (!dono && !s.ehAdmin())
+            throw new RegraNegocioException("PROIBIDO", "Sem permissão para abrir este documento");
+        return s3.abrirStream(d.getChaveS3());
     }
 }

@@ -34,7 +34,11 @@ import { DialogService } from './dialog.service';
       </div>
       <ul class="meta-lista">
         <li><span class="drone-icone"></span> {{ e.nomeDronista }} · 💰 R$ {{ e.valorProposto }}</li>
-        <li>🔗 <a [href]="e.urlVideo" target="_blank" rel="noopener" class="link-video">{{ e.urlVideo }}</a></li>
+        @if (e.arquivos?.length) {
+          <li>🎬 {{ e.arquivos.length }} vídeo(s) — assista abaixo</li>
+        } @else {
+          <li>🎬 <button class="ver-video" (click)="abrirVideo(e)">▶️ Assistir pela plataforma</button></li>
+        }
         @if (e.observacao) { <li>💬 {{ e.observacao }}</li> }
         @if (e.status === 'APROVADA') {
           @if (ehDronista) {
@@ -45,6 +49,28 @@ import { DialogService } from './dialog.service';
           }
         }
       </ul>
+
+      @if (e.arquivos?.length) {
+        <div class="docs-lista">
+          @for (a of e.arquivos; track a.id) {
+            <div class="doc-item">
+              <span class="doc-nome">🎬 {{ a.nomeOriginal }} <small class="muted">· {{ bytes(a.tamanho) }}</small></span>
+              <button type="button" class="ver-video" (click)="abrirArquivo(a)">▶️ Assistir</button>
+            </div>
+            @if (videoArquivoId === a.id && videoArquivoUrl) {
+              <div class="video-box">
+                <video [src]="videoArquivoUrl" controls preload="metadata" style="width:100%; max-height:420px; border-radius:8px; background:#000"></video>
+              </div>
+            }
+          }
+        </div>
+      }
+
+      @if (videoUrl && videoEntregaId === e.id) {
+        <div class="video-box">
+          <video [src]="videoUrl" controls preload="metadata" style="width:100%; max-height:480px; border-radius:8px; background:#000"></video>
+        </div>
+      }
 
       @if (!ehDronista && e.status === 'ENVIADA') {
         <div class="alert alert-info">Aprove para liberar o pagamento ou recuse para nova versão.</div>
@@ -86,7 +112,15 @@ import { DialogService } from './dialog.service';
     }
   }`,
   styles: [`
-    .link-video { color: #3ea6ff; font-weight: 500; word-break: break-all; }
+    .ver-video { border: none; background: none; color: #3ea6ff; font-weight: 600; cursor: pointer; font-size: .9rem; padding: 0; }
+    .ver-video:hover { text-decoration: underline; }
+    .video-box { margin-top: .7rem; }
+    .docs-lista { display: grid; gap: .4rem; margin-top: .6rem; }
+    .doc-item {
+      display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+      background: rgba(255, 255, 255, .04); border-radius: 8px; padding: .45rem .6rem;
+    }
+    .doc-nome { font-size: .875rem; word-break: break-all; }
   `]
 })
 export class EntregasComponent implements OnInit {
@@ -95,8 +129,39 @@ export class EntregasComponent implements OnInit {
   carregando = true; erro = '';
   notaPorId: any = {};
   comentarioPorId: any = {};
+  videoUrl: string | null = null;      // blob autenticado (video principal legado)
+  videoEntregaId = '';
+  videoArquivoUrl: string | null = null; // blob do arquivo da lista (N vídeos)
+  videoArquivoId = '';
 
   constructor(private api: ApiService, private dialog: DialogService) {}
+
+  bytes(n: any): string {
+    if (n == null) return '';
+    if (n >= 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+    return (n / 1024).toFixed(0) + ' KB';
+  }
+
+  /** Abre um vídeo da lista (blob autenticado pelo backend). */
+  abrirArquivo(a: any) {
+    if (this.videoArquivoId === a.id) { this.videoArquivoId = ''; this.videoArquivoUrl = null; return; }
+    this.videoArquivoId = a.id; this.videoArquivoUrl = null;
+    this.api.videoArquivo(a.id).subscribe({
+      next: url => { this.videoArquivoUrl = url; },
+      error: err => this.dialog.info(err.error?.mensagem || 'Não foi possível abrir o vídeo')
+    });
+  }
+
+  /** Abre o vídeo da entrega pela plataforma (blob via backend autenticado — nunca link do S3). */
+  abrirVideo(e: any) {
+    if (this.videoEntregaId === e.id) { this.videoEntregaId = ''; this.videoUrl = null; return; }
+    this.videoEntregaId = e.id; this.videoUrl = null;
+    this.api.videoEntrega(e.id).subscribe({
+      next: url => { this.videoUrl = url; },
+      error: err => this.dialog.info(err.error?.mensagem || 'Não foi possível abrir o vídeo')
+    });
+  }
 
   ngOnInit() {
     this.ehDronista = papelAtual() === 'DRONISTA';

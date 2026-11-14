@@ -1,6 +1,8 @@
 package com.dronistas.web;
 
+import com.dronistas.mapper.DronistaDocumentoMapper;
 import com.dronistas.mapper.PerfilDronistaMapper;
+import com.dronistas.model.DronistaDocumento;
 import com.dronistas.model.PerfilDronista;
 import com.dronistas.security.RegraNegocioException;
 import com.dronistas.security.Sessao;
@@ -15,28 +17,26 @@ import java.util.Map;
 /**
  * Painel de validação de identidade (exclusivo ADMIN).
  * O dronista com cadastro pendente/em análise NÃO pode aceitar voos —
- * libera ou rejeita a partir daqui, visualizando os documentos com URL pré-assinada.
+ * libera ou rejeita a partir daqui, visualizando os documentos
+ * SEMPRE pelo backend autenticado (streaming; nada de link S3).
  */
 @RestController
 public class AdminValidacaoController {
 
     private final PerfilDronistaMapper dronistas;
+    private final DronistaDocumentoMapper documentos;
     private final S3UploadService s3;
 
-    public AdminValidacaoController(PerfilDronistaMapper dronistas, S3UploadService s3) {
+    public AdminValidacaoController(PerfilDronistaMapper dronistas, DronistaDocumentoMapper documentos,
+                                    S3UploadService s3) {
         this.dronistas = dronistas;
+        this.documentos = documentos;
         this.s3 = s3;
     }
 
     private void exigirAdmin() {
         if (!Sessao.atual().ehAdmin())
             throw new RegraNegocioException("PROIBIDO", "Operação exclusiva do administrador");
-    }
-
-    private String presSignOuVazio(String url) {
-        if (url == null || url.isBlank()) return null;
-        try { return s3.urlPresignada(S3UploadService.chaveDeUrl(url)); }
-        catch (Exception e) { return null; }
     }
 
     @GetMapping("/api/admin/validacoes")
@@ -46,6 +46,7 @@ public class AdminValidacaoController {
         if (!st.equals("ENVIADA") && !st.equals("PENDENTE") && !st.equals("APROVADA") && !st.equals("REJEITADA"))
             throw new RegraNegocioException("CAMPO_INVALIDO", "Status inválido");
         return dronistas.listarPorValidacao(st).stream().map(p -> {
+            int totalDocs = documentos.listarPorDronista(p.getId()).size();
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("perfilId", p.getId().toString());
             m.put("nome", p.getNome());
@@ -54,13 +55,15 @@ public class AdminValidacaoController {
             m.put("cidade", p.getCidade());
             m.put("estado", p.getEstado());
             m.put("validacaoDoc", p.getValidacaoDoc());
+            m.put("totalDocumentos", totalDocs);
+            // legado (slots fixos das versões anteriores)
             m.put("temFrente", p.getDocumentoFotoUrl() != null);
             m.put("temVerso", p.getDocumentoVersoUrl() != null);
             return m;
         }).toList();
     }
 
-    /** URLs pré-assinadas (15 min) para o admin visualizar os documentos do dronista. */
+    /** Resumo dos documentos enviados pelo dronista (IDs para abrir via /conteudo). */
     @GetMapping("/api/admin/validacoes/{perfilId}/documentos")
     public Map<String, Object> documentos(@PathVariable java.util.UUID perfilId) {
         exigirAdmin();
@@ -69,10 +72,24 @@ public class AdminValidacaoController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("nome", p.getNome());
         out.put("cnpjCpf", p.getCnpjCpf());
-        out.put("frente", presSignOuVazio(p.getDocumentoFotoUrl()));
-        out.put("verso", presSignOuVazio(p.getDocumentoVersoUrl()));
         out.put("validacaoDoc", p.getValidacaoDoc());
+        out.put("documentos", documentos.listarPorDronista(perfilId).stream().map(d -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", d.getId().toString());
+            m.put("nome", d.getNomeOriginal());
+            m.put("tamanho", d.getTamanho());
+            return m;
+        }).toList());
         return out;
+    }
+
+    /** Conteúdo de um documento (streaming pelo backend; exclusivo admin). */
+    @GetMapping("/api/admin/documentos/{id}/conteudo")
+    public ResponseEntity<org.springframework.core.io.Resource> conteudo(@PathVariable java.util.UUID id) {
+        exigirAdmin(); // painel admin; o dono usa /api/documentos/{id}/conteudo
+        DronistaDocumento d = documentos.buscarPorId(id);
+        if (d == null) throw new RegraNegocioException("NAO_ENCONTRADO", "Documento não encontrado");
+        return s3.abrirStream(d.getChaveS3());
     }
 
     /** Aprova → o dronista volta a poder aceitar voos. */

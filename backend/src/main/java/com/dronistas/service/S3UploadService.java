@@ -4,6 +4,7 @@ import com.dronistas.security.RegraNegocioException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -29,8 +30,8 @@ import java.util.UUID;
  *   sem credenciais configuradas, o serviço fica DESABILITADO e o upload devolve
  *   503 com mensagem clara (validações de tipo/tamanho rodam antes, sem tocar o S3).
  * - Objetos gravados com chave aleatória sob documentos/AAAA/; bucket privado —
- *   leitura feita por URL pré-assinada (15 min) com checagem de titularidade.
- * - Limites: 2 arquivos por dronista (campos doc1/doc2 do perfil), 100 MB cada,
+ *   leitura feita por URL pré-assinada (15 min).
+ * - Limites: 2 arquivos por dronista (slots do perfil), 100 MB cada,
  *   tipos: JPG/PNG/WEBP/HEIC/HEIF/PDF.
  */
 @Service
@@ -74,7 +75,7 @@ public class S3UploadService {
 
     public boolean habilitado() { return habilitado; }
 
-    /** Valida e envia o arquivo; devolve a URL pública-forma do objeto (bucket privado = leitura via presign). */
+    /** Valida e envia o arquivo; devolve a URL do objeto (bucket privado = leitura via presign). */
     public record UploadResultado(String url, String chave, long tamanho, String contentType) {}
 
     public UploadResultado enviarDocumento(MultipartFile arquivo) {
@@ -107,9 +108,75 @@ public class S3UploadService {
 
     public void excluir(String chave) {
         exigirHabilitado();
-        if (chave == null || !chave.startsWith("documentos/"))
-            throw new RegraNegocioException("CAMPO_INVALIDO", "Chave de documento inválida");
+        if (chave == null || !(chave.startsWith("documentos/") || chave.startsWith("videos/")))
+            throw new RegraNegocioException("CAMPO_INVALIDO", "Chave de objeto inválida");
         s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(chave).build());
+    }
+
+    /** Upload de VÍDEO da entrega: até 8 GB, MP4/MOV/WebM/MKV/AVI, em videos/AAAA/. */
+    public static final long VIDEO_MAX = 8L * 1024 * 1024 * 1024; // 8 GB
+    private static final java.util.Set<String> VIDEO_EXT_OK = java.util.Set.of("mp4", "mov", "webm", "mkv", "avi");
+
+    /** Valida e envia o vídeo da entrega; devolve URL-forma/chave/tamanho/tipo. */
+    public UploadResultado enviarVideo(MultipartFile arquivo) {
+        if (arquivo == null || arquivo.isEmpty())
+            throw new RegraNegocioException("CAMPO_OBRIGATORIO", "Selecione o arquivo de vídeo do voo");
+        if (arquivo.getSize() > VIDEO_MAX)
+            throw new RegraNegocioException("CAMPO_INVALIDO", "Vídeo maior que 8 GB — exporte em resolução menor e tente novamente");
+        String nome = arquivo.getOriginalFilename() == null ? "" : arquivo.getOriginalFilename();
+        if (nome.contains("..") || nome.contains("/"))
+            throw new RegraNegocioException("CAMPO_INVALIDO", "Nome de arquivo inválido");
+        String ext = nome.contains(".") ? nome.substring(nome.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT) : "";
+        if (!VIDEO_EXT_OK.contains(ext))
+            throw new RegraNegocioException("CAMPO_INVALIDO", "Formato de vídeo não aceito — envie MP4, MOV, WebM, MKV ou AVI");
+        exigirHabilitado();
+
+        String limpo = nome.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (limpo.length() > 60) limpo = limpo.substring(limpo.length() - 60);
+        String chave = "videos/" + java.time.Year.now().getValue() + "/"
+                + UUID.randomUUID() + "-" + limpo;
+
+        try {
+            PutObjectRequest put = PutObjectRequest.builder()
+                    .bucket(bucket).key(chave)
+                    .contentType(arquivo.getContentType() == null || arquivo.getContentType().isBlank()
+                            ? "video/" + ext : arquivo.getContentType())
+                    .contentDisposition("inline; filename=\"" + limpo + "\"")
+                    .build();
+            s3.putObject(put, RequestBody.fromInputStream(arquivo.getInputStream(), arquivo.getSize()));
+        } catch (IOException e) {
+            throw new RegraNegocioException("UPLOAD_FALHOU", "Falha ao ler o arquivo de vídeo");
+        } catch (Exception e) {
+            log.error("Falha no upload do vídeo para o S3: {}", e.getMessage());
+            throw new RegraNegocioException("UPLOAD_FALHOU", "Falha ao enviar o vídeo para o armazenamento");
+        }
+
+        String url = String.format(Locale.ROOT, "https://%s.s3.%s.amazonaws.com/%s", bucket, region.id(), chave);
+        return new UploadResultado(url, chave, arquivo.getSize(), arquivo.getContentType());
+    }
+
+    /** Visualização/streaming de objetos (documentos e videos) — SEMPRE pelo backend
+     *  autenticado; quem chama já passou pelo guard (dono, parte envolvida ou admin). */
+    public ResponseEntity<org.springframework.core.io.Resource> abrirStream(String chave) {
+        exigirHabilitado();
+        if (chave == null || !(chave.startsWith("documentos/") || chave.startsWith("videos/")))
+            throw new RegraNegocioException("CAMPO_INVALIDO", "Chave de objeto inválida");
+        try {
+            var resp = s3.getObject(GetObjectRequest.builder().bucket(bucket).key(chave).build());
+            String tipo = resp.response().contentType() == null || resp.response().contentType().isBlank()
+                    ? "application/octet-stream" : resp.response().contentType();
+            long len = resp.response().contentLength();
+            var resource = new org.springframework.core.io.InputStreamResource(resp);
+            return ResponseEntity.ok()
+                    .header("Content-Type", tipo)
+                    .header("Content-Length", String.valueOf(len))
+                    .header("Content-Disposition", "inline")
+                    .header("Cache-Control", "no-store, private")
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("Falha ao abrir objeto do S3: {}", e.getMessage());
+            throw new RegraNegocioException("NAO_ENCONTRADO", "Arquivo não pôde ser aberto");
+        }
     }
 
     /** URL pré-assinada (15 min) para baixar/visualizar o documento do bucket privado. */
@@ -148,13 +215,5 @@ public class S3UploadService {
         if (!habilitado)
             throw new RegraNegocioException("UPLOAD_NAO_CONFIGURADO",
                     "Serviço de upload ainda não configurado — peça ao administrador para definir as credenciais da AWS");
-    }
-
-    /** Extrai a chave do objeto a partir da URL https://<bucket>.s3.<regiao>.amazonaws.com/<chave>. */
-    public static String chaveDeUrl(String url) {
-        if (url == null) throw new RegraNegocioException("CAMPO_INVALIDO", "URL de documento inválida");
-        int i = url.indexOf(".amazonaws.com/");
-        if (i < 0) throw new RegraNegocioException("CAMPO_INVALIDO", "URL de documento inválida");
-        return url.substring(i + ".amazonaws.com/".length());
     }
 }

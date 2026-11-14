@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { Observable, catchError, throwError } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, catchError, map, throwError } from 'rxjs';
 import { limparSessao } from './papel';
 
 @Injectable({ providedIn: 'root' })
@@ -78,7 +78,107 @@ export class ApiService {
   // ---- Entregas ----
   entregasRecebidas(): Observable<any[]> { return this.get(`${this.base}/entregas/recebidas`); }
   minhasEntregas(): Observable<any[]> { return this.get(`${this.base}/entregas/minhas`); }
-  entregarVideo(contaId: string, dados: any): Observable<any> { return this.post(`${this.base}/contas/${contaId}/entrega`, dados); }
+  /** Entrega do vídeo por UPLOAD (multipart; até 8 GB) com progresso em % via HttpProgressEvent. */
+  uploadEntrega(contaId: string, arquivo: File, observacao: string | null, onProgress?: (pct: number) => void): Observable<any> {
+    const fd = new FormData();
+    fd.append('arquivo', arquivo, arquivo.name);
+    if (observacao) fd.append('observacao', observacao);
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return new Observable<any>(assina => {
+      const req = this.http.post(`${this.base}/contas/${contaId}/entrega`, fd, {
+        headers,
+        reportProgress: true,
+        observe: 'events'
+      }).subscribe({
+        next: (ev: any) => {
+          // 1 = UploadProgress · 4 = Response (resultado final)
+          if (ev.type === 1 && ev.loaded != null && ev.total) {
+            onProgress?.(Math.min(100, Math.round(ev.loaded * 100 / ev.total)));
+          } else if (ev.type === 4) {
+            assina.next(ev.body);
+            assina.complete();
+          }
+        },
+        error: e => assina.error(this.tratarSessao(e))
+      });
+      return () => req.unsubscribe();
+    });
+  }
+  /** Vídeo da entrega como blob autenticado (nunca link direto ao S3) para abrir/assistir. */
+  videoEntrega(id: string): Observable<string> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.get(`${this.base}/entregas/${id}/video`, { headers, responseType: 'blob' })
+      .pipe(map(b => URL.createObjectURL(b)), catchError(e => this.tratarSessao(e)));
+  }
+  /** Dronista anexa mais um vídeo à entrega (lista de N arquivos, teto 10). */
+  adicionarArquivoEntrega(entregaId: string, arquivo: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('arquivo', arquivo, arquivo.name);
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.post(`${this.base}/entregas/${entregaId}/arquivos`, fd, { headers })
+      .pipe(catchError(e => this.tratarSessao(e)));
+  }
+  excluirArquivoEntrega(arquivoId: string): Observable<any> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.delete(`${this.base}/entregas/arquivos/${arquivoId}`, { headers })
+      .pipe(catchError(e => this.tratarSessao(e)));
+  }
+  /** Vídeo de um arquivo da lista como blob autenticado (nunca link direto ao S3). */
+  videoArquivo(arquivoId: string): Observable<string> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.get(`${this.base}/entregas/arquivos/${arquivoId}/video`, { headers, responseType: 'blob' })
+      .pipe(map(b => URL.createObjectURL(b)), catchError(e => this.tratarSessao(e)));
+  }
+  /** Arquivos da entrega (lista de N vídeos). */
+  arquivosDaEntrega(entregaId: string): Observable<any[]> { return this.get(`${this.base}/entregas/${entregaId}/arquivos`); }
+  /** STAGING: anexa 1 vídeo ao rascunho (invisível ao solicitante) com progresso %. */
+  anexarRascunho(contaId: string, arquivo: File, onProgress?: (pct: number) => void): Observable<any> {
+    const fd = new FormData();
+    fd.append('arquivo', arquivo, arquivo.name);
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return new Observable<any>(assina => {
+      const req = this.http.post(`${this.base}/contas/${contaId}/rascunho`, fd, {
+        headers, reportProgress: true, observe: 'events'
+      }).subscribe({
+        next: (ev: any) => {
+          if (ev.type === 1 && ev.loaded != null && ev.total) {
+            onProgress?.(Math.min(100, Math.round(ev.loaded * 100 / ev.total)));
+          } else if (ev.type === 4) {
+            assina.next(ev.body);
+            assina.complete();
+          }
+        },
+        error: e => assina.error(this.tratarSessao(e))
+      });
+      return () => req.unsubscribe();
+    });
+  }
+  /** STAGING: conteúdo do vídeo anexado (blob autenticado p/ conferir antes de entregar). */
+  rascunhoConteudo(id: string): Observable<string> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.get(`${this.base}/contas/rascunho/${id}/conteudo`, { headers, responseType: 'blob' })
+      .pipe(map(b => URL.createObjectURL(b)), catchError(e => this.tratarSessao(e)));
+  }
+  /** STAGING: lista os vídeos anexados no rascunho. */
+  rascunhoDaConta(contaId: string): Observable<any[]> { return this.get(`${this.base}/contas/${contaId}/rascunho`); }
+  /** STAGING: remove 1 vídeo do rascunho. */
+  removerRascunho(rascunhoId: string): Observable<any> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.delete(`${this.base}/contas/rascunho/${rascunhoId}`, { headers })
+      .pipe(catchError(e => this.tratarSessao(e)));
+  }
+  /** FINALIZA a entrega (move os vídeos do rascunho) e notifica o solicitante. */
+  finalizarEntrega(contaId: string, observacao: string | null): Observable<any> {
+    return this.post(`${this.base}/contas/${contaId}/entrega-final`, { observacao });
+  }
   aprovarEntrega(id: string): Observable<any> { return this.post(`${this.base}/entregas/${id}/aprovar`, {}); }
   recusarEntrega(id: string): Observable<any> { return this.post(`${this.base}/entregas/${id}/recusar`, {}); }
   avaliarEntrega(id: string, nota: number, comentario: string): Observable<any> {
@@ -88,18 +188,49 @@ export class ApiService {
     return this.post(`${this.base}/entregas/${id}/avaliar-solicitante`, { nota, comentario });
   }
 
-  // ---- Upload de documentos (dronista; bucket privado, leitura presignada) ----
+  // ---- Upload de documentos (dronista; bucket privado; N arquivos, max 10) ----
   documentosMe(): Observable<any> { return this.get(`${this.base}/documentos/me`); }
-  uploadDocumento(arquivo: File, slot: 'pos' | 'vers'): Observable<any> {
+  /** Upload de 1 documento (multipart; até 100 MB) com progresso em % via HttpProgressEvent. */
+  uploadDocumento(arquivo: File, onProgress?: (pct: number) => void): Observable<any> {
     const fd = new FormData();
     fd.append('arquivo', arquivo, arquivo.name);
-    // multipart sem headers Authorization via interceptores default: usa headers() + body cru
     const token = localStorage.getItem('token') || '';
     const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
-    return this.http.post(`${this.base}/documentos/upload?slot=${slot}`, fd, { headers })
+    return new Observable<any>(assina => {
+      const req = this.http.post(`${this.base}/documentos/upload`, fd, {
+        headers,
+        reportProgress: true,
+        observe: 'events'
+      }).subscribe({
+        next: (ev: any) => {
+          // 1 = UploadProgress · 4 = Response (resultado final)
+          if (ev.type === 1 && ev.loaded != null && ev.total) {
+            onProgress?.(Math.min(100, Math.round(ev.loaded * 100 / ev.total)));
+          } else if (ev.type === 4) {
+            assina.next(ev.body);
+            assina.complete();
+          }
+        },
+        error: e => assina.error(this.tratarSessao(e))
+      });
+      return () => req.unsubscribe();
+    });
+  }
+  /** Conteúdo do documento como blob autenticado (nunca link direto ao S3). */
+  documentoConteudo(id: string): Observable<string> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.get(`${this.base}/documentos/${id}/conteudo`, { headers, responseType: 'blob' })
+      .pipe(map(b => URL.createObjectURL(b)), catchError(e => this.tratarSessao(e)));
+  }
+  excluirDocumento(id: string): Observable<any> {
+    const token = localStorage.getItem('token') || '';
+    const headers = new HttpHeaders({ Authorization: 'Bearer ' + token });
+    return this.http.delete(`${this.base}/documentos/${id}`, { headers })
       .pipe(catchError(e => this.tratarSessao(e)));
   }
-  documentoUrl(slot: 'pos' | 'vers'): Observable<any> { return this.get(`${this.base}/documentos/url?slot=${slot}`); }
+  /** Lista os documentos do dronista (N arquivos). */
+  meusDocumentos(): Observable<any> { return this.get(`${this.base}/documentos/me`); }
 
   // ---- Ranking ----
   rankingDronistas(): Observable<any[]> { return this.get(`${this.base}/ranking/dronistas`); }

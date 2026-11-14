@@ -1,5 +1,4 @@
 import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ApiService } from './api.service';
 import { AdminService } from './admin.service';
 import { papelAtual } from './papel';
@@ -7,13 +6,11 @@ import { DialogService } from './dialog.service';
 
 /**
  * Painel ADMIN: fila de validação de identidade dos dronistas.
- * Dronista com cadastro pendente/em análise não pode aceitar voos —
- * aqui o admin visualiza os documentos (URL pré-assinada) e aprova/rejeita.
+ * Lista de N documentos (até 10), visualizados em blob autenticado pelo backend.
  */
 @Component({
   selector: 'app-validacoes',
   standalone: true,
-  imports: [FormsModule],
   template: `
   @if (papel !== 'ADMIN') {
     <div class="alert alert-error">⚠️ Esta tela é exclusiva do administrador da plataforma.</div>
@@ -40,21 +37,25 @@ import { DialogService } from './dialog.service';
         <ul class="meta-lista">
           <li>📄 Documento: {{ v.cnpjCpf }}</li>
           <li>📞 {{ v.telefone || '—' }}</li>
-          <li>🧾 Arquivos: {{ v.temFrente ? 'frente ✓' : 'frente ✗' }} · {{ v.temVerso ? 'verso ✓' : 'verso ✗' }}</li>
+          <li>🧾 Arquivos anexados: {{ v.totalDocumentos || 0 }}</li>
         </ul>
-        @if (detalhesId === v.perfilId && docUrls) {
-          <div class="docs">
-            @if (docUrls.frente) {
-              <a [href]="docUrls.frente" target="_blank" rel="noopener" class="mini-doc">🧾 Ver frente (15 min)</a>
+        @if (detalhesId === v.perfilId && docRes) {
+          <div class="docs-lista">
+            @for (d of docRes.documentos; track d.id) {
+              <div class="doc-item">
+                <span class="doc-nome">🧾 {{ d.nome }} <small class="muted">· {{ bytes(d.tamanho) }}</small></span>
+                <button type="button" class="mini" (click)="abrirDoc(d)">👁️ Abrir</button>
+              </div>
+            } @empty {
+              <span class="muted" style="font-size:.85rem">nenhum arquivo da nova lista (podem estar nos slots antigos)</span>
             }
-            @if (docUrls.verso) {
-              <a [href]="docUrls.verso" target="_blank" rel="noopener" class="mini-doc">🧾 Ver verso (15 min)</a>
+            @if (docRes.temFrente || docRes.temVerso) {
+              <small class="muted" style="font-size:.8rem">Este dronista tem arquivos do formato antigo (slots frente/verso); peça reanexo para a lista nova se necessário.</small>
             }
-            @if (!docUrls.frente && !docUrls.verso) { <span class="muted">nenhum arquivo enviado</span> }
           </div>
         }
         <div class="acoes-linha">
-          <button class="btn btn-outline btn-sm" (click)="verDocs(v)">👁️ Abrir documentos</button>
+          <button class="btn btn-outline btn-sm" (click)="verDocs(v)">👁️ Ver documentos</button>
           @if (v.validacaoDoc !== 'APROVADA') {
             <button class="btn btn-sm" (click)="aprovar(v)">✓ Aprovar identidade</button>
           }
@@ -71,9 +72,14 @@ import { DialogService } from './dialog.service';
   }`,
   styles: [`
     .abas { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
-    .docs { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .6rem; }
-    .mini-doc { color: #3ea6ff; font-weight: 600; font-size: .875rem; text-decoration: none; }
-    .mini-doc:hover { text-decoration: underline; }
+    .docs-lista { display: grid; gap: .4rem; margin-top: .6rem; }
+    .doc-item {
+      display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+      background: rgba(255, 255, 255, .04); border-radius: 8px; padding: .45rem .6rem;
+    }
+    .doc-nome { font-size: .875rem; word-break: break-all; }
+    .mini { border: none; background: none; color: #3ea6ff; font-size: .8rem; cursor: pointer; padding: .15rem .3rem; }
+    .mini:hover { text-decoration: underline; }
   `]
 })
 export class ValidacoesComponent implements OnInit {
@@ -81,13 +87,19 @@ export class ValidacoesComponent implements OnInit {
   status = 'ENVIADA';
   lista: any[] = [];
   carregando = true; erro = '';
-  detalhesId = ''; docUrls: any = null;
+  detalhesId = ''; docRes: any = null;
 
   constructor(private admin: AdminService, private dialog: DialogService) {}
 
+  bytes(n: any): string {
+    if (n == null) return '';
+    if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+    return (n / 1024).toFixed(0) + ' KB';
+  }
+
   ngOnInit() { this.carregar(); }
 
-  trocar(st: string) { this.status = st; this.detalhesId = ''; this.docUrls = null; this.carregar(); }
+  trocar(st: string) { this.status = st; this.detalhesId = ''; this.docRes = null; this.carregar(); }
 
   carregar() {
     this.carregando = true; this.erro = '';
@@ -98,17 +110,24 @@ export class ValidacoesComponent implements OnInit {
   }
 
   verDocs(v: any) {
-    if (this.detalhesId === v.perfilId) { this.detalhesId = ''; this.docUrls = null; return; }
+    if (this.detalhesId === v.perfilId) { this.detalhesId = ''; this.docRes = null; return; }
     this.admin.documentos(v.perfilId).subscribe({
-      next: d => { this.docUrls = d; this.detalhesId = v.perfilId; },
+      next: d => { this.docRes = d; this.detalhesId = v.perfilId; },
       error: e => this.dialog.info(e.error?.mensagem || 'Erro ao abrir documentos')
+    });
+  }
+
+  abrirDoc(d: any) {
+    this.admin.adminDocumentoConteudo(d.id).subscribe({
+      next: url => window.open(url, '_blank'),
+      error: e => this.dialog.info(e.error?.mensagem || 'Não foi possível abrir o documento')
     });
   }
 
   aprovar(v: any) {
     this.dialog.confirmar({
       titulo: 'Aprovar identidade',
-      mensagem: `Aprovar a identidade de ${v.nome}?\\nO dronista poderá aceitar propostas de voo novamente.`,
+      mensagem: `Aprovar a identidade de ${v.nome}?\nO dronista poderá aceitar propostas de voo novamente.`,
       textoConfirmar: 'Aprovar'
     }).then(ok => {
       if (!ok) return;
@@ -122,7 +141,7 @@ export class ValidacoesComponent implements OnInit {
   rejeitar(v: any) {
     this.dialog.confirmar({
       titulo: 'Rejeitar documentos',
-      mensagem: `Rejeitar os documentos de ${v.nome}?\\nO dronista continuará sem poder aceitar voos até reapresentar.`,
+      mensagem: `Rejeitar os documentos de ${v.nome}?\nO dronista continuará sem poder aceitar voos até reapresentar.`,
       textoConfirmar: 'Rejeitar', perigoso: true
     }).then(ok => {
       if (!ok) return;

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, catchError, throwError } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 /** Endpoints exclusivos do ADMIN para validar identidade dos dronistas. */
 @Injectable({ providedIn: 'root' })
@@ -9,21 +9,26 @@ export class AdminService {
 
   constructor(private http: HttpClient) {}
 
-  private req<T>(url: string): Observable<T> {
+  private headers(): HttpHeaders {
     const token = localStorage.getItem('token') || '';
-    return this.http.get<T>(url, { headers: new HttpHeaders({ Authorization: 'Bearer ' + token }) });
-  }
-  private post<T>(url: string): Observable<T> {
-    const token = localStorage.getItem('token') || '';
-    return this.http.post<T>(url, {}, { headers: new HttpHeaders({ Authorization: 'Bearer ' + token }) });
+    return new HttpHeaders({ Authorization: 'Bearer ' + token });
   }
 
   fila(status = 'ENVIADA'): Observable<any[]> {
-    return this.req(`${this.base}/validacoes?status=${status}`);
+    return this.http.get<any[]>(`${this.base}/validacoes?status=${status}`, { headers: this.headers() });
   }
   documentos(perfilId: string): Observable<any> {
-    return this.req(`${this.base}/validacoes/${perfilId}/documentos`);
+    return this.http.get<any>(`${this.base}/validacoes/${perfilId}/documentos`, { headers: this.headers() });
   }
-  aprovar(perfilId: string): Observable<any> { return this.post(`${this.base}/validacoes/${perfilId}/aprovar`); }
-  rejeitar(perfilId: string): Observable<any> { return this.post(`${this.base}/validacoes/${perfilId}/rejeitar`); }
+  /** Documento como blob autenticado (streaming via backend — nunca link S3). */
+  adminDocumentoConteudo(id: string): Observable<string> {
+    return this.http.get(`/api/admin/documentos/${id}/conteudo`, { headers: this.headers(), responseType: 'blob' })
+      .pipe(map(b => URL.createObjectURL(b)));
+  }
+  aprovar(perfilId: string): Observable<any> {
+    return this.http.post(`${this.base}/validacoes/${perfilId}/aprovar`, {}, { headers: this.headers() });
+  }
+  rejeitar(perfilId: string): Observable<any> {
+    return this.http.post(`${this.base}/validacoes/${perfilId}/rejeitar`, {}, { headers: this.headers() });
+  }
 }

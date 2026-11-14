@@ -80,6 +80,23 @@ Check "perfil dronista 2 traz repasse Pix + validacao ENVIADA" ($r.ok -and $r.da
 
 $r = Api GET "$base/documentos/me" $null $tokDr2
 Check "documentos/me responde com status do upload" ($r.ok -and $null -ne $r.data.validacaoDoc -and $null -ne $r.data.habilitado) ($r.body | Out-String)
+
+# Upload de N documentos: envia 3 PNGs e verifica lista (teto 10)
+$png = [byte[]]@(0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0,0,0,13,0x49,0x48,0x44,0x52,0,0,0,1,0,0,0,1,8,6,0,0,0,0x1F,0x15,0xC4,0x89,0,0,0,10,0x49,0x44,0x41,0x54,0x78,0x9C,0x63,0,1,0,0,5,0,1,0x0D,0x0A,0x2D,0xB4,0,0,0,0,0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82)
+[System.IO.File]::WriteAllBytes("$env:TEMP\doc-png.png", $png)
+$hdrDr2 = @{ Authorization = "Bearer $tokDr2" }
+for ($nd = 1; $nd -le 3; $nd++) {
+  $rU = Invoke-RestMethod -Uri "$base/documentos/upload" -Method POST -Headers $hdrDr2 -Form @{ arquivo = Get-Item "$env:TEMP\doc-png.png" } -TimeoutSec 60
+}
+Check "upload de N documentos (3 enviados)" ($rU.total -ge 3) ($rU.total)
+$rD = Api GET "$base/documentos/me" $null $tokDr2
+Check "documentos/me lista 3 arquivos" ($rD.ok -and $rD.data.documentos.Count -ge 3) ($rD.data.total)
+$primeiro = $rD.data.documentos | Select-Object -First 1
+$presign2 = Invoke-WebRequest -Uri "$base/documentos/$($primeiro.id)/conteudo" -Headers $hdrDr2 -TimeoutSec 60
+Check "documento lido pelo backend (PNG integro, 67 bytes)" ($presign2.StatusCode -eq 200 -and $presign2.RawContentLength -eq 67) ($presign2.RawContentLength)
+$rEx = Api "DELETE" "$base/documentos/$($primeiro.id)" $null $tokDr2
+$restantes = Invoke-RestMethod -Uri "$base/documentos/me" -Headers $hdrDr2
+Check "exclusao de documento (lista encolhe)" ($restantes.total -ge 2) ($restantes.total)
 Set-Content "$env:TEMP\doc.txt" -Value 'nao sou imagem nem pdf' -Encoding UTF8
 try {
   $rU = Invoke-RestMethod -Uri "$base/documentos/upload?slot=pos" -Method POST -Headers @{ Authorization = "Bearer $tokDr2" } -Form @{ arquivo = Get-Item "$env:TEMP\doc.txt" } -TimeoutSec 30 -ErrorAction Stop
@@ -221,11 +238,28 @@ $r = Api POST "$base/propostas/$propostaId/cancelar" $null $tokSol
 Check "cancelar proposta aceita -> 403" ($r.status -eq 403) ("status=$($r.status)")
 
 Write-Output "=== 6. Entrega e aprovacao ==="
-$r = Api POST "$base/contas/$contaDr1/entrega" @{ urlVideo = 'https://youtube.com/watch?v=abc123'; observacao = 'Corte bruto 4K60' } $tokDr1
-Check "dronista 1 entrega video" ($r.ok) ($r.body)
+# entrega por UPLOAD de arquivo (multipart) — criando um MP4 de teste em runtime
+$videoTemp = "$env:TEMP\smoke-video.mp4"
+[System.IO.File]::WriteAllBytes($videoTemp, (New-Object byte[] 1048576)) # 1 MB de zeros
+function UploadEntrega($contaId, $token, $obs) {
+  $headers = @{ Authorization = "Bearer $token" }
+  $form = @{ arquivo = Get-Item $videoTemp }
+  if ($obs) { $form['observacao'] = $obs }
+  try {
+    $resp = Invoke-RestMethod -Uri "$base/contas/$contaId/entrega" -Method POST -Headers $headers -Form $form -TimeoutSec 600
+    return @{ ok = $true; data = $resp; status = 200 }
+  } catch {
+    $status = 0; $errBody = $null
+    if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode; $errBody = $_.ErrorDetails.Message }
+    return @{ ok = $false; status = $status; body = $errBody }
+  }
+}
+
+$r = UploadEntrega $contaDr1 $tokDr1 'Corte bruto 4K60'
+Check "dronista 1 entrega video (upload S3)" ($r.ok) ($r.body)
 $entregaId = $r.data.id
 
-$r = Api POST "$base/contas/$contaDr1/entrega" @{ urlVideo = 'https://youtube.com/watch?v=abc123' } $tokDr2
+$r = UploadEntrega $contaDr1 $tokDr2 $null
 Check "dronista 2 (sem conta aceita) tenta entregar -> 404" ($r.status -eq 404) ("status=$($r.status) body=$($r.body)")
 
 $r = Api GET "$base/entregas/recebidas" $null $tokSol
@@ -233,13 +267,94 @@ Check "solicitante ve entrega recebida" ($r.ok -and ($r.data | Where-Object { $_
 
 $r = Api POST "$base/entregas/$entregaId/recusar" $null $tokSol
 Check "solicitante recusa entrega (REJEITADA)" ($r.ok) ($r.body)
-$r = Api POST "$base/contas/$contaDr1/entrega" @{ urlVideo = 'https://youtube.com/watch?v=finalXYZ'; observacao = 'Versao corrigida com color grading' } $tokDr1
+$r = UploadEntrega $contaDr1 $tokDr1 'Versao corrigida com color grading'
 Check "dronista 1 reenvia video (mesma entrega, status volta a ENVIADA)" ($r.ok -and $r.data.id -eq $entregaId -and $r.data.status -eq 'ENVIADA') ($r.body)
 
 $r = Api POST "$base/entregas/$entregaId/aprovar" $null $tokSol
 Check "solicitante aprova entrega -> pagamento liberado" ($r.ok -and $r.data.status -eq 'APROVADA') ($r.body)
 $r = Api GET "$base/propostas/$propostaId" $null $tokSol
 Check "proposta ficou CONCLUIDA" ($r.data.status -eq 'CONCLUIDA') ($r.data.status)
+
+Write-Output "=== 6b. N arquivos de video por entrega ==="
+# nova proposta + aceite para testar a lista de vídeos
+$r = Api POST "$base/propostas" @{ titulo = 'Voo com varios videos'; dataVoo = $dataVoo; horaVoo = '11:00'; duracaoMin = 45; qualidadeVideo = '4K_60FPS'; fps = $null; formatoVideo = 'MP4'; valorOferecido = 500 } $tokSol
+Check "criar proposta p/ N videos" ($r.ok) ($r.body)
+$pN = $r.data.id
+$r = Api POST "$base/propostas/$pN/contas" @{ valorProposto = 480 } $tokDr1
+$contaN = $r.data.id
+$r = Api POST "$base/contas/$contaN/aceitar" $null $tokSol
+Check "aceitar conta (proposta N)" ($r.ok) ($r.body)
+
+# primeira entrega (upload 1)
+$r = UploadEntrega $contaN $tokDr1 'Parte 1'
+Check "primeiro upload (parte 1)" ($r.ok) ($r.body)
+$entN = $r.data.id
+
+# anexa 2 vídeo extras na MESMA entrega
+$extra1 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers @{ Authorization = "Bearer $tokDr1" } -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+$extra2 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers @{ Authorization = "Bearer $tokDr1" } -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+Check "anexar 2o video na entrega" ($null -ne $extra1.id) ($extra1)
+Check "anexar 3o video na entrega" ($null -ne $extra2.id) ($extra2)
+
+# lista de arquivos da entrega (rota própria)
+$rA = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers @{ Authorization = "Bearer $tokDr1" } -TimeoutSec 60
+$nArq = @($rA).Count
+Check "entrega lista 3 videos" ($nArq -eq 3) ($nArq)
+
+# streaming de um arquivo da lista pelo SOLICITANTE
+$vidA = Invoke-WebRequest -Uri "$base/entregas/arquivos/$($extra1.id)/video" -Headers @{ Authorization = "Bearer $tokSol" } -TimeoutSec 90
+Check "streaming do 2o video pelo solicitante" ($vidA.StatusCode -eq 200 -and $vidA.RawContentLength -gt 0) ($vidA.RawContentLength)
+
+# remover um arquivo e conferir a lista
+$r = Api "DELETE" "$base/entregas/arquivos/$($extra2.id)" $null $tokDr1
+$rA = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers @{ Authorization = "Bearer $tokDr1" } -TimeoutSec 60
+$nArq2 = @($rA).Count
+Check "remocao de arquivo (lista encolhe para 2)" ($nArq2 -eq 2) ($nArq2)
+
+# aprovar com a lista restante
+$r = Api POST "$base/entregas/$entN/aprovar" $null $tokSol
+Check "aprovar entrega com lista de videos" ($r.ok -and $r.data.status -eq 'APROVADA') ($r.body)
+
+Write-Output "=== 6c. Staging: anexa N videos e so entrega no final ==="
+# nova proposta + aceite para o fluxo de rascunho
+$r = Api POST "$base/propostas" @{ titulo = 'Voo staging'; dataVoo = $dataVoo; horaVoo = '13:00'; duracaoMin = 60; qualidadeVideo = '4K_30FPS'; fps = $null; formatoVideo = 'MOV'; valorOferecido = 400 } $tokSol
+Check "criar proposta p/ staging" ($r.ok) ($r.body)
+$pS = $r.data.id
+$r = Api POST "$base/propostas/$pS/contas" @{ valorProposto = 380 } $tokDr1
+$contaS = $r.data.id
+$r = Api POST "$base/contas/$contaS/aceitar" $null $tokSol
+Check "aceitar conta (staging)" ($r.ok) ($r.body)
+
+$hdrDr1 = @{ Authorization = ("Bearer " + $tokDr1) }
+# ANEXA 2 videos no rascunho (o solicitante ainda NAO ve nada)
+$ra1 = Invoke-RestMethod -Uri "$base/contas/$contaS/rascunho" -Method POST -Headers $hdrDr1 -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+$ra2 = Invoke-RestMethod -Uri "$base/contas/$contaS/rascunho" -Method POST -Headers $hdrDr1 -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+Check "rascunho: anexar 1o video (staging)" ($null -ne $ra1.id) ($ra1)
+Check "rascunho: anexar 2o video (staging)" ($null -ne $ra2.id) ($ra2)
+$rS = Invoke-RestMethod -Uri "$base/contas/$contaS/rascunho" -Headers $hdrDr1 -TimeoutSec 60
+Check "rascunho lista 2 videos" (@($rS).Count -eq 2) ($rS)
+
+# FINALIZA: os 2 videos do rascunho viram a entrega visível ao solicitante
+$fin = Invoke-RestMethod -Uri "$base/contas/$contaS/entrega-final" -Method POST -Headers $hdrDr1 -ContentType 'application/json' -Body (@{ observacao = 'Entrega final com 2 videos' } | ConvertTo-Json) -TimeoutSec 120
+Check "finalizar entrega (rascunho -> ENVIADA)" ($fin.status -eq 'ENVIADA') ($fin)
+
+# rascunho ficou vazio apos finalizar
+$rS2 = Invoke-RestMethod -Uri "$base/contas/$contaS/rascunho" -Headers $hdrDr1 -TimeoutSec 60
+Check "rascunho vazio apos entrega" (@($rS2).Count -eq 0) ($rS2)
+
+# entregas visiveis tem 2 arquivos para o SOLICITANTE
+$entregas = Invoke-RestMethod -Uri "$base/entregas/recebidas" -Headers @{ Authorization = ("Bearer " + $tokSol) } -TimeoutSec 60
+$entSol = $entregas | Where-Object { $_.id -eq $fin.id } | Select-Object -First 1
+$nArqS = @($entSol.arquivos).Count
+Check "solicitante ve entrega com 2 videos" ($null -ne $entSol -and $nArqS -eq 2) ($nArqS)
+
+# streaming de 1 video da lista pelo SOLICITANTE
+$vidS = Invoke-WebRequest -Uri "$base/entregas/arquivos/$($entSol.arquivos[0].id)/video" -Headers @{ Authorization = ("Bearer " + $tokSol) } -TimeoutSec 90
+Check "solicitante assiste 1 video da lista (streaming 200)" ($vidS.StatusCode -eq 200 -and $vidS.RawContentLength -gt 0) ($vidS.RawContentLength)
+
+# finalizar sem anexar nada (nova entrega) deve falhar com 422
+$r = Api POST "$base/contas/$contaS/entrega-final" @{ observacao = 'sem videos' } $tokDr1
+Check "finalizar sem videos no rascunho -> 422" ($r.status -eq 422) ("status=$($r.status) body=$($r.body)")
 
 Write-Output "=== 7. Avaliacoes e ranking ==="
 $r = Api POST "$base/entregas/$entregaId/avaliar" @{ nota = 5; comentario = 'Excelente trabalho' } $tokSol

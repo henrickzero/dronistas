@@ -9,8 +9,10 @@ import java.util.UUID;
 public interface EntregaVideoMapper {
 
     @Insert("""
-        INSERT INTO entrega_video (id, conta_id, url_video, observacao, status, criado_em)
-        VALUES (#{id}, #{contaId}, #{urlVideo}, #{observacao}, 'ENVIADA', now())
+        INSERT INTO entrega_video (id, conta_id, url_video, video_chave, video_tamanho, video_content_type,
+                                   observacao, status, criado_em)
+        VALUES (#{id}, #{contaId}, #{urlVideo}, #{videoChave}, #{videoTamanho}, #{videoContentType},
+                #{observacao}, 'ENVIADA', now())
         """)
     int inserir(EntregaVideo e);
 
@@ -72,10 +74,14 @@ public interface EntregaVideoMapper {
     List<EntregaVideo> listarPorDronista(@Param("dronistaId") UUID dronistaId);
 
     @Update("""
-        UPDATE entrega_video SET url_video = #{urlVideo}, observacao = #{observacao}, status = 'ENVIADA'
+        UPDATE entrega_video SET url_video = #{urlVideo}, video_chave = #{videoChave},
+                                 video_tamanho = #{videoTamanho}, video_content_type = #{videoContentType},
+                                 observacao = #{observacao}, status = 'ENVIADA'
         WHERE id = #{id} AND status IN ('ENVIADA', 'REJEITADA')
         """)
-    int reenviar(@Param("id") UUID id, @Param("urlVideo") String urlVideo, @Param("observacao") String observacao);
+    int reenviar(@Param("id") UUID id, @Param("urlVideo") String urlVideo, @Param("videoChave") String videoChave,
+                 @Param("videoTamanho") Long videoTamanho, @Param("videoContentType") String videoContentType,
+                 @Param("observacao") String observacao);
 
     @Update("UPDATE entrega_video SET status = 'APROVADA' WHERE id = #{id} AND status = 'ENVIADA'")
     int aprovar(@Param("id") UUID id);

@@ -6,7 +6,11 @@ import { MascaraFoneDirective, MascaraCepDirective, MascaraDocDirective } from '
 import { CepService } from './cep.service';
 import { EstrelasComponent } from './estrelas.component';
 
-/** Perfil: dados, localização, 💸 repasse (Pix/banco) e 🛡️ validação de identidade (dronista). */
+/**
+ * Perfil: dados, localização, 💸 repasse (Pix/banco) e 🛡️ validação de identidade
+ * com LISTA de N documentos (até 10 arquivos, 100 MB cada) — upload individual,
+ * com progresso percentual e exclusão.
+ */
 @Component({
   selector: 'app-perfil',
   standalone: true,
@@ -150,32 +154,44 @@ import { EstrelasComponent } from './estrelas.component';
           } @else if (p.validacaoDoc === 'ENVIADA') {
             <div class="alert alert-info">⏳ Documento em análise — avisaremos quando estiver aprovado.</div>
           } @else if (p.validacaoDoc === 'REJEITADA') {
-            <div class="alert alert-error">⚠️ Documento não pôde ser validado — envie uma foto nítida (frente e verso).</div>
+            <div class="alert alert-error">⚠️ Documento não pôde ser validado — anexe uma foto nítida (frente e verso).</div>
           } @else {
             <div class="alert alert-warning">📌 Pendente — para liberar seus repasses, anexe a foto do seu documento uma única vez.</div>
           }
-          @if (p.validacaoDoc !== 'APROVADA') {
-            <div class="upload-zona">
-              <div class="upload-slot">
-                <b>1 · Documento (foto aberta / frente)</b>
-                @if (docFoneNome) {
-                  <span class="ok">✓ {{ docFoneNome }}{{ docFoneTamanho ? ' · ' + docFoneTamanho : '' }}</span>
-                } @else { <span class="falta">nenhum arquivo</span> }
-                <input type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                       (change)="enviarDoc($event, 'pos')" [disabled]="uploading !== null">
-              </div>
-              <div class="upload-slot">
-                <b>2 · Verso (opcional)</b>
-                @if (docVersoNome) {
-                  <span class="ok">✓ {{ docVersoNome }}{{ docVersoTamanho ? ' · ' + docVersoTamanho : '' }}</span>
-                } @else { <span class="falta">nenhum arquivo</span> }
-                <input type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                       (change)="enviarDoc($event, 'vers')" [disabled]="uploading !== null">
-              </div>
-              @if (uploading) { <small class="hint">Enviando {{ uploading === 'pos' ? 'documento' : 'verso' }}... (até 100 MB — pode demorar um pouco)</small> }
-              <small class="hint">JPG, PNG, WEBP, HEIC ou PDF · até 2 arquivos · 100 MB cada. Para sua segurança e a liberação dos seus repasses — feito uma única vez.</small>
+
+          <div class="upload-zona">
+            <div class="docs-lista">
+              @for (d of documentos; track d.id) {
+                <div class="doc-item">
+                  <span class="doc-nome">🧾 {{ d.nome }} <small class="muted">· {{ bytes(d.tamanho) }}</small></span>
+                  <span class="doc-acoes">
+                    <button type="button" class="mini" (click)="abrirDoc(d)">👁️ Abrir</button>
+                    <button type="button" class="mini perigo" (click)="excluirDoc(d)">🗑️ Excluir</button>
+                  </span>
+                </div>
+              } @empty {
+                <span class="falta">Nenhum documento anexado ainda.</span>
+              }
             </div>
-          }
+            @if (documentos.length < 10) {
+              <div class="upload-slot">
+                <b>📎 Anexar documento (JPG, PNG, WEBP, HEIC ou PDF · 100 MB)</b>
+                <small class="hint">Pode ser CNH ou RG — você pode anexar frente, verso e até {{ 10 - documentos.length }} arquivo(s) restantes.</small>
+                <input type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                       [disabled]="uploading !== null" (change)="enviarDoc($event)">
+              </div>
+              <!-- Progresso do upload de documento -->
+              @if (uploading) {
+                <div class="progresso-upload">
+                  <div class="prog-barra"><div class="prog-preenchido" [style.width.%]="progressoDoc"></div></div>
+                  <span class="prog-txt">⬆️ Enviando documento — {{ progressoDoc }}%{{ progressoDoc >= 100 ? ' · processando...' : '' }}</span>
+                </div>
+              }
+              <small class="hint">Para sua segurança e a liberação dos seus repasses — anexado ao seu perfil, visível apenas para você e o admin.</small>
+            } @else {
+              <div class="alert alert-warning">📌 Limite de 10 documentos atingido — exclua um para anexar outro.</div>
+            }
+          </div>
         }
 
         @if (sucesso) { <div class="alert alert-success">✓ {{ sucesso }}</div> }
@@ -199,11 +215,23 @@ import { EstrelasComponent } from './estrelas.component';
     .opcao2 .titulo { font-weight: 700; }
     .opcao2 .sub { font-size: .8rem; color: var(--color-text-muted); }
     .upload-zona { border: 1.5px dashed var(--color-border); border-radius: var(--radius); padding: .9rem; display: grid; gap: .7rem; }
+    .docs-lista { display: grid; gap: .4rem; }
+    .doc-item {
+      display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+      background: rgba(255, 255, 255, .04); border-radius: 8px; padding: .45rem .6rem;
+    }
+    .doc-nome { font-size: .875rem; word-break: break-all; }
+    .doc-acoes { display: flex; gap: .6rem; flex-shrink: 0; }
+    .mini { border: none; background: none; color: #3ea6ff; font-size: .8rem; cursor: pointer; padding: .15rem .3rem; }
+    .mini.perigo { color: var(--color-error); }
+    .mini:hover { text-decoration: underline; }
     .upload-slot { display: flex; flex-direction: column; gap: .3rem; }
     .upload-slot b { font-size: .9rem; }
     .upload-slot input[type="file"] { padding: .4rem; margin-top: 0; min-height: 0; font-size: .85rem; }
-    .upload-slot .ok { color: #7ee08a; font-size: .85rem; word-break: break-all; }
-    .upload-slot .falta { color: var(--color-text-muted); font-size: .85rem; }
+    .progresso-upload { display: flex; flex-direction: column; gap: .35rem; }
+    .prog-barra { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+    .prog-preenchido { height: 100%; background: #3ea6ff; border-radius: 999px; transition: width .3s ease; }
+    .prog-txt { font-size: .85rem; font-weight: 600; color: #7cc0ff; }
   `]
 })
 export class PerfilComponent implements OnInit {
@@ -216,14 +244,66 @@ export class PerfilComponent implements OnInit {
   modoRepasse: 'pix' | 'banco' = 'pix';
   pixTipo = ''; pixChave = ''; pixAuto = false;
   banco = ''; agencia = ''; conta = ''; tipoConta = 'CORRENTE';
-  uploading: 'pos' | 'vers' | null = null;
-  docFoneNome = ''; docFoneTamanho = '';
-  docVersoNome = ''; docVersoTamanho = '';
+  documentos: any[] = [];
+  uploading = false;
+  progressoDoc = 0;
   buscandoCep = false; avisoCep = ''; ultimoCep = '';
   ufs = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
   sucesso = ''; erro = ''; ocupado = false; carregando = true;
 
   constructor(private api: ApiService, private cepService: CepService) {}
+
+  bytes(n: any): string {
+    if (n == null) return '';
+    if (n >= 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+    return (n / 1024).toFixed(0) + ' KB';
+  }
+
+  /** Abre o documento (blob autenticado via backend — nunca link do S3). */
+  abrirDoc(d: any) {
+    this.api.documentoConteudo(d.id).subscribe({
+      next: (url: string) => window.open(url, '_blank'),
+      error: e => { this.erro = e.error?.mensagem || 'Não foi possível abrir o documento'; }
+    });
+  }
+
+  excluirDoc(d: any) {
+    this.api.excluirDocumento(d.id).subscribe({
+      next: () => { this.documentos = this.documentos.filter(x => x.id !== d.id); this.p.total = this.documentos.length; },
+      error: e => { this.erro = e.error?.mensagem || 'Falha ao excluir'; }
+    });
+  }
+
+  /** Envia 1 documento (RG/CNH) para o S3; repete quantas vezes quiser até 10 arquivos. */
+  enviarDoc(ev: any) {
+    const input = ev.target as HTMLInputElement;
+    const arquivo = input.files && input.files[0];
+    if (!arquivo) return;
+    this.erro = '';
+    if (arquivo.size > 100 * 1024 * 1024) {
+      this.erro = 'Arquivo maior que 100 MB — reduza a foto/escaneie em resolução menor.';
+      input.value = '';
+      return;
+    }
+    this.uploading = true;
+    this.progressoDoc = 0;
+    this.api.uploadDocumento(arquivo, pct => { this.progressoDoc = pct; }).subscribe({
+      next: (r: any) => {
+        this.uploading = false; this.progressoDoc = 0;
+        this.documentos = [...this.documentos, r];
+        if (this.p) this.p.validacaoDoc = r.validacaoDoc || 'ENVIADA';
+        this.sucesso = 'Documento enviado! Em análise para liberar seus repasses.';
+        flashSet('Documento enviado.');
+        input.value = '';
+      },
+      error: e => {
+        this.uploading = false; this.progressoDoc = 0;
+        input.value = '';
+        this.erro = e.error?.mensagem || 'Falha no envio — tente novamente';
+      }
+    });
+  }
 
   buscaCep() {
     const d = (this.cep || '').replace(/\D/g, '');
@@ -264,8 +344,8 @@ export class PerfilComponent implements OnInit {
           this.pixTipo = p.pixTipo || ''; this.pixChave = p.pixChave || '';
           this.banco = p.banco || ''; this.agencia = p.agencia || ''; this.conta = p.conta || '';
           this.tipoConta = p.tipoConta || 'CORRENTE';
-          this.docFoneNome = p.documentoFotoUrl ? p.documentoFotoUrl.split('/').pop() : '';
-          this.docFoneTamanho = p.documentoFotoUrl ? '' : '';
+          // Lista de documentos (N arquivos)
+          this.api.meusDocumentos().subscribe(d => { this.documentos = d.documentos || []; });
         }
         this.carregando = false;
       },
@@ -280,38 +360,6 @@ export class PerfilComponent implements OnInit {
     }
   }
 
-  /** Envia 1 documento (RG/CNH) para o S3 e grava no slot correspondente (até 2 arquivos, 100 MB cada). */
-  enviarDoc(ev: any, slot: 'pos' | 'vers') {
-    const input = ev.target as HTMLInputElement;
-    const arquivo = input.files && input.files[0];
-    if (!arquivo) return;
-    this.erro = '';
-    if (arquivo.size > 100 * 1024 * 1024) {
-      this.erro = 'Arquivo maior que 100 MB — reduza a foto/escaneie em resolução menor.';
-      input.value = '';
-      return;
-    }
-    this.uploading = slot;
-    this.api.uploadDocumento(arquivo, slot).subscribe({
-      next: (r: any) => {
-        this.uploading = null;
-        const nome = arquivo.name;
-        const mb = (arquivo.size / (1024 * 1024)).toFixed(1) + ' MB';
-        if (slot === 'pos') { this.docFoneNome = nome; this.docFoneTamanho = mb; }
-        else { this.docVersoNome = nome; this.docVersoTamanho = mb; }
-        if (this.p) this.p.validacaoDoc = 'ENVIADA';
-        this.sucesso = 'Documento enviado! Em análise para liberar seus repasses.';
-        flashSet('Documento enviado.');
-        input.value = '';
-      },
-      error: e => {
-        this.uploading = null;
-        input.value = '';
-        this.erro = e.error?.mensagem || 'Falha no envio — tente novamente';
-      }
-    });
-  }
-
   salvar() {
     this.erro = ''; this.sucesso = ''; this.ocupado = true;
     const ehDronista = this.papel === 'DRONISTA';
@@ -323,16 +371,12 @@ export class PerfilComponent implements OnInit {
       bairro: this.bairro || null, cep: this.cep || null,
       logradouro: ehDronista ? (this.logradouro || null) : null,
       numero: ehDronista ? ((this.numero || '').trim().toUpperCase() || null) : null,
-      // Repasse + validação (só dronista; backend valida titularidade de novo)
       pixTipo: ehDronista && this.modoRepasse === 'pix' ? this.pixTipo : null,
       pixChave: ehDronista && this.modoRepasse === 'pix' ? this.pixChave : null,
       banco: ehDronista && this.modoRepasse === 'banco' ? this.banco : null,
       agencia: ehDronista && this.modoRepasse === 'banco' ? this.agencia : null,
       conta: ehDronista && this.modoRepasse === 'banco' ? this.conta : null,
-      tipoConta: ehDronista && this.modoRepasse === 'banco' ? this.tipoConta : null,
-      // Upload de documentos é feito por arquivo nesta tela (S3); nada de URL manual aqui
-      documentoFotoUrl: null,
-      documentoVersoUrl: null
+      tipoConta: ehDronista && this.modoRepasse === 'banco' ? this.tipoConta : null
     }).subscribe({
       next: p => { this.p = p; this.ocupado = false; this.sucesso = 'Perfil atualizado!'; flashSet('Perfil atualizado.'); },
       error: e => { this.ocupado = false; this.erro = e.error?.mensagem || 'Erro ao salvar'; }

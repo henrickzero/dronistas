@@ -11,7 +11,11 @@ import java.util.UUID;
 public class EntregaVideo {
     private UUID id;
     private UUID contaId;
-    private String urlVideo;
+    private String urlVideo;      // legado (hospedagem externa) ou link-forma do objeto no S3
+    private String videoChave;    // chave no S3 quando enviado por upload
+    private Long videoTamanho;    // bytes do arquivo enviado
+    private String videoContentType;
+    private java.util.List<com.dronistas.model.EntregaArquivo> arquivos = new java.util.ArrayList<>();
     private String observacao;
     private String status;
     private OffsetDateTime criadoEm;
@@ -36,6 +40,14 @@ public class EntregaVideo {
     public void setContaId(UUID contaId) { this.contaId = contaId; }
     public String getUrlVideo() { return urlVideo; }
     public void setUrlVideo(String urlVideo) { this.urlVideo = urlVideo; }
+    public String getVideoChave() { return videoChave; }
+    public void setVideoChave(String videoChave) { this.videoChave = videoChave; }
+    public Long getVideoTamanho() { return videoTamanho; }
+    public void setVideoTamanho(Long videoTamanho) { this.videoTamanho = videoTamanho; }
+    public String getVideoContentType() { return videoContentType; }
+    public void setVideoContentType(String videoContentType) { this.videoContentType = videoContentType; }
+    public java.util.List<com.dronistas.model.EntregaArquivo> getArquivos() { return arquivos; }
+    public void setArquivos(java.util.List<com.dronistas.model.EntregaArquivo> arquivos) { this.arquivos = arquivos; }
     public String getObservacao() { return observacao; }
     public void setObservacao(String observacao) { this.observacao = observacao; }
     public String getStatus() { return status; }

@@ -461,8 +461,8 @@ export class SitePrincipalComponent {
         salvarSessao(r.token, r.papel, r.usuarioId);
         // Envia os documentos escolhidos (se houver) já autenticado; entra no app na sequência
         const uploads: any[] = [];
-        if (ehDronista && this.arqFone) uploads.push(this.api.uploadDocumento(this.arqFone, 'pos'));
-        if (ehDronista && this.arqVerso) uploads.push(this.api.uploadDocumento(this.arqVerso, 'vers'));
+        if (ehDronista && this.arqFone) uploads.push(this.api.uploadDocumento(this.arqFone));
+        if (ehDronista && this.arqVerso) uploads.push(this.api.uploadDocumento(this.arqVerso));
         if (uploads.length === 0) { window.location.href = '/app'; return; }
         let faltam = uploads.length;
         const fim = () => { if (--faltam <= 0) window.location.href = '/app'; };
