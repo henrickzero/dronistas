@@ -308,7 +308,8 @@ public class EntregaService {
         return ra;
     }
 
-    /** Remove um vídeo da lista da entrega (exclui do S3 também). */
+    /** Remove um vídeo JÁ ENTREGUE — bloqueado: depois de entregue, só o solicitante
+     *  (recusando a entrega) devolve o controle ao dronista para reenviar. */
     @Transactional
     public void removerArquivo(UUID arquivoId) {
         Sessao s = Sessao.atual();
@@ -319,6 +320,12 @@ public class EntregaService {
         UUID dronistaId = entregas.buscarDronistaDaEntrega(a.getEntregaId());
         if (!perfil.getId().equals(dronistaId))
             throw new RegraNegocioException("NAO_ENCONTRADO", "Arquivo não encontrado");
+        EntregaVideo entrega = entregas.buscarPorId(a.getEntregaId());
+        if (entrega != null && ("ENVIADA".equals(entrega.getStatus()) || "APROVADA".equals(entrega.getStatus())))
+            throw new RegraNegocioException("PROIBIDO",
+                    "O vídeo já foi entregue ao solicitante e não pode ser removido" +
+                    ("APROVADA".equals(entrega.getStatus()) ? " — entrega aprovada" :
+                        " — aguarde a recusa do solicitante para enviar uma nova versão"));
         try { s3.excluir(a.getChaveS3()); } catch (Exception ignore) { /* best-effort */ }
         arquivos.excluir(arquivoId);
     }

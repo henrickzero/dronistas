@@ -289,31 +289,52 @@ Check "aceitar conta (proposta N)" ($r.ok) ($r.body)
 $r = UploadEntrega $contaN $tokDr1 'Parte 1'
 Check "primeiro upload (parte 1)" ($r.ok) ($r.body)
 $entN = $r.data.id
+$hdrDr1N = @{ Authorization = ("Bearer " + $tokDr1) }
+$hdrSolN = @{ Authorization = ("Bearer " + $tokSol) }
 
 # anexa 2 vídeo extras na MESMA entrega
-$extra1 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers @{ Authorization = "Bearer $tokDr1" } -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
-$extra2 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers @{ Authorization = "Bearer $tokDr1" } -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+        $extra1 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers $hdrDr1N -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
+        $extra2 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Method POST -Headers $hdrDr1N -Form @{ arquivo = Get-Item $videoTemp } -TimeoutSec 300
 Check "anexar 2o video na entrega" ($null -ne $extra1.id) ($extra1)
 Check "anexar 3o video na entrega" ($null -ne $extra2.id) ($extra2)
 
 # lista de arquivos da entrega (rota própria)
-$rA = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers @{ Authorization = "Bearer $tokDr1" } -TimeoutSec 60
+        $rA = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers $hdrDr1N -TimeoutSec 60
 $nArq = @($rA).Count
 Check "entrega lista 3 videos" ($nArq -eq 3) ($nArq)
 
 # streaming de um arquivo da lista pelo SOLICITANTE
-$vidA = Invoke-WebRequest -Uri "$base/entregas/arquivos/$($extra1.id)/video" -Headers @{ Authorization = "Bearer $tokSol" } -TimeoutSec 90
+        $vidA = Invoke-WebRequest -Uri "$base/entregas/arquivos/$($extra1.id)/video" -Headers $hdrSolN -TimeoutSec 90
 Check "streaming do 2o video pelo solicitante" ($vidA.StatusCode -eq 200 -and $vidA.RawContentLength -gt 0) ($vidA.RawContentLength)
 
-# remover um arquivo e conferir a lista
-$r = Api "DELETE" "$base/entregas/arquivos/$($extra2.id)" $null $tokDr1
-$rA = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers @{ Authorization = "Bearer $tokDr1" } -TimeoutSec 60
-$nArq2 = @($rA).Count
-Check "remocao de arquivo (lista encolhe para 2)" ($nArq2 -eq 2) ($nArq2)
+        # REMOCAO APOS ENTREGA: bloqueada - o video entregue e imutavel para o dronista;
+        # so o solicitante (via recusa) devolve o controle para reenvio.
+        try {
+          Invoke-RestMethod -Uri "$base/entregas/arquivos/$($extra2.id)" -Method DELETE -Headers $hdrDr1N -TimeoutSec 60 -ErrorAction Stop | Out-Null
+          Check "remocao apos entrega bloqueada -> 403" ($false) ("esperava 403")
+        } catch {
+          $st = 0
+          if ($_.Exception.Response) { $st = [int]$_.Exception.Response.StatusCode }
+          Check "remocao apos entrega bloqueada -> 403" ($st -eq 403) ("status=$st")
+        }
 
-# aprovar com a lista restante
-$r = Api POST "$base/entregas/$entN/aprovar" $null $tokSol
-Check "aprovar entrega com lista de videos" ($r.ok -and $r.data.status -eq 'APROVADA') ($r.body)
+        # solicitante recusa -> o controle volta ao dronista, que pode ajustar a lista
+        $r = Api POST "$base/entregas/$entN/recusar" $null $tokSol
+        Check "solicitante recusa entrega (controle volta ao dronista)" ($r.ok) ($r.body)
+        Invoke-RestMethod -Uri "$base/entregas/arquivos/$($extra2.id)" -Method DELETE -Headers $hdrDr1N -TimeoutSec 60 | Out-Null
+        $rA2 = Invoke-RestMethod -Uri "$base/entregas/$entN/arquivos" -Headers $hdrDr1N -TimeoutSec 60
+        $nArq2 = @($rA2).Count
+        Check "remocao apos recusa permitida (lista encolhe para 2)" ($nArq2 -eq 2) ($nArq2)
+
+        # REENVIA (obrigatorio apos recusa): entrega nova com os 2 videos restantes
+        $r = Api POST "$base/contas/$contaN/entrega-final" -TimeoutSec 120 -Headers $hdrDr1N -ContentType 'application/json' -Body (@{ observacao = 'Versao corrigida' } | ConvertTo-Json) -ErrorAction SilentlyContinue
+        $r = UploadEntrega $contaN $tokDr1 'Versao corrigida'
+        Check "dronista reenvia apos recusa" ($r.ok) ($r.body)
+        $entN2 = $r.data.id
+
+        # aprovar com a lista ajustada (nova entrega)
+        $r = Api POST "$base/entregas/$entN2/aprovar" $null $tokSol
+        Check "aprovar entrega com lista de videos" ($r.ok -and $r.data.status -eq 'APROVADA') ($r.body)
 
 Write-Output "=== 6c. Staging: anexa N videos e so entrega no final ==="
 # nova proposta + aceite para o fluxo de rascunho

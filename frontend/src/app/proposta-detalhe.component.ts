@@ -229,14 +229,18 @@ import { MascaraValorDirective, Mascara } from './mascara';
         <h2>🎬 Sua entrega</h2>
         <div class="cartao-item">
           @if (entrega && entrega.arquivos?.length) {
-            <div class="alert alert-info">{{ entrega.arquivos.length }} vídeo(s) entregue(s). Aguardando aprovação do solicitante.</div>
+            @if (entrega.status === 'ENVIADA') {
+              <div class="alert alert-info">{{ entrega.arquivos.length }} vídeo(s) entregue(s) ao solicitante. Aguardando aprovação — o vídeo não pode mais ser removido nem substituído; se for recusado, você poderá enviar uma nova versão.</div>
+            }
             <div class="docs-lista">
               @for (a of entrega.arquivos; track a.id) {
                 <div class="doc-item">
                   <span class="doc-nome">🎬 {{ a.nomeOriginal }} <small class="muted">· {{ tamanho(a.tamanho) }}</small></span>
                   <span class="doc-acoes">
                     <button class="mini" (click)="abrirArquivo(a)">▶️ Assistir</button>
-                    <button class="mini perigo" (click)="removerArquivo(a)">🗑️ Remover</button>
+                    @if (entrega.status === 'REJEITADA') {
+                      <button class="mini perigo" (click)="removerArquivo(a)">🗑️ Remover</button>
+                    }
                   </span>
                 </div>
                 @if (videoArquivoId === a.id && videoArquivoUrl) {
